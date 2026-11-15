@@ -193,11 +193,48 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .seg button.on{background:var(--card);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
 :root[data-theme="dark"] .seg button.on{background:#636366}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button.on{background:#636366}}
-@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+
+/* ---------- motion & touch feel ---------- */
+:root{--spring:cubic-bezier(.34,1.42,.5,1);--ease-out:cubic-bezier(.2,.9,.25,1)}
+button,a,.row .info{-webkit-tap-highlight-color:transparent}
+button:not(:disabled),.chip,.navbtn,.gear,.backlink,.seg button{transition:transform .32s var(--spring),background-color .2s,color .2s,opacity .2s}
+button:not(:disabled):active,.gear:active,.backlink:active{transform:scale(.95);transition-duration:.08s}
+.row .info:active{transform:none}
+.row:has(.info:active){background:color-mix(in srgb,var(--ink) 5%,transparent);border-radius:12px}
+.row{transition:background .25s}
+.chip:active{transform:scale(.92)}
+.chip.on{animation:pop .38s var(--spring)}
+.add.done{animation:addpop .5s var(--spring);background:var(--accent);color:var(--accent-ink)}
+@keyframes addpop{0%{transform:scale(.7)}55%{transform:scale(1.22)}100%{transform:scale(1)}}
+@keyframes pop{0%{transform:scale(.9)}60%{transform:scale(1.06)}100%{transform:scale(1)}}
+nav a.on svg{animation:tabbounce .5s var(--spring)}
+@keyframes tabbounce{0%{transform:scale(.75) translateY(2px)}60%{transform:scale(1.12) translateY(-1px)}100%{transform:none}}
+.wrap.a-fade{animation:aFade .34s var(--ease-out)}
+.wrap.a-left{animation:aLeft .42s var(--ease-out)}
+.wrap.a-right{animation:aRight .42s var(--ease-out)}
+.wrap.a-push{animation:aPush .45s var(--ease-out)}
+.wrap.a-pop{animation:aPop .45s var(--ease-out)}
+@keyframes aFade{from{opacity:0;transform:translateY(10px) scale(.99)}to{opacity:1;transform:none}}
+@keyframes aLeft{from{opacity:0;transform:translateX(28px)}to{opacity:1;transform:none}}
+@keyframes aRight{from{opacity:0;transform:translateX(-28px)}to{opacity:1;transform:none}}
+@keyframes aPush{from{opacity:.2;transform:translateX(60%)}to{opacity:1;transform:none}}
+@keyframes aPop{from{opacity:.2;transform:translateX(-30%)}to{opacity:1;transform:none}}
+.wrap.stagger .card>.row,.wrap.stagger .card>a,.wrap.stagger .card>button{animation:rowIn .45s var(--ease-out) backwards}
+.wrap.stagger .card>*:nth-child(1){animation-delay:.02s}.wrap.stagger .card>*:nth-child(2){animation-delay:.05s}.wrap.stagger .card>*:nth-child(3){animation-delay:.08s}.wrap.stagger .card>*:nth-child(4){animation-delay:.11s}.wrap.stagger .card>*:nth-child(5){animation-delay:.14s}.wrap.stagger .card>*:nth-child(6){animation-delay:.17s}.wrap.stagger .card>*:nth-child(7){animation-delay:.2s}.wrap.stagger .card>*:nth-child(8){animation-delay:.23s}.wrap.stagger .card>*:nth-child(n+9){animation-delay:.26s}
+@keyframes rowIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+#sheet .panel{transition:transform .5s cubic-bezier(.22,1.18,.36,1)}
+#sheet:not(.open) .panel{transition:transform .28s cubic-bezier(.4,0,1,1)}
+.toast.show{transition:transform .45s var(--spring),opacity .25s}
+.wrap.stagger .rings .v{animation:ringIn 1s cubic-bezier(.2,.8,.2,1) backwards}
+@keyframes ringIn{from{stroke-dashoffset:var(--c)}}
+#hapt{position:fixed;left:-100px;top:0;width:1px;height:1px;opacity:0;pointer-events:none}
+@media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}}
+
 @media (max-width:370px){.rings{width:144px;height:144px}.rings .big{font-size:20px}.hero{gap:12px;padding:14px}}
 </style>
 </head>
 <body>
+<label id="hapt" aria-hidden="true"><input type="checkbox" switch tabindex="-1"></label>
 <main id="main"></main>
 <nav id="nav" aria-label="Sections"><div class="tabs">
   <a href="#today"><svg viewBox="0 0 26 26"><g class="o"><circle cx="13" cy="13" r="10"/><circle cx="13" cy="13" r="5.5"/></g><path class="f" d="M13 2a11 11 0 1 1 0 22a11 11 0 0 1 0-22zm0 5a6 6 0 1 0 0 12a6 6 0 0 0 0-12zm0 3a3 3 0 1 1 0 6a3 3 0 0 1 0-6z" fill-rule="evenodd"/></svg>Today</a>
@@ -391,7 +428,7 @@ function vToday(){
   const t=totals(),L=S.settings.lim,ents=S.logs[S.date]||[],over=L.cal&&t.cal>L.cal,rem=L.cal-t.cal;
   const R=[['cal',78],['pro',66],['carb',54],['fat',42]];
   const ring=([k,r])=>{const C=2*Math.PI*r,lim=L[k],pc=lim?Math.min(1,t[k]/lim):0,ov=!GOAL[k]&&lim&&t[k]>lim,col=`var(--${ov?'crit':k})`;
-    return `<circle class="t" cx="84" cy="84" r="${r}" style="stroke:${col}"/>${pc>0?`<circle class="v" cx="84" cy="84" r="${r}" style="stroke:${col}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pc)}"/>`:''}`};
+    return `<circle class="t" cx="84" cy="84" r="${r}" style="stroke:${col}"/>${pc>0?`<circle class="v" cx="84" cy="84" r="${r}" style="stroke:${col};--c:${C}" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pc)}"/>`:''}`};
   const lg=k=>{const lim=L[k],ov=!GOAL[k]&&lim&&t[k]>lim,hit=GOAL[k]&&lim&&t[k]>=lim,left=lim-t[k],u=k==='cal'?'':'g';
     return `<div class="lg"><span class="k"><i style="background:var(--${ov?'crit':k})"></i>${k==='cal'?'Calories':LABEL[k]} ${ov?'<span class="pill over">Over</span>':hit?'<span class="pill hit">Goal hit</span>':''}</span><span class="v">${r0(t[k]).toLocaleString()}<small> / ${lim.toLocaleString()}${u}${GOAL[k]?' goal':''}</small></span></div>`};
   const others=KEYS.filter(k=>!MAIN.includes(k)).map(k=>{const lim=L[k],ov=!GOAL[k]&&lim&&t[k]>lim;return `<div class="${ov?'x':''}"><b>${fmt(k,t[k])}</b><small>${LABEL[k]}${lim?' · '+(GOAL[k]?'goal ':'limit ')+lim+UNIT[k]:''}</small></div>`}).join('');
@@ -522,15 +559,21 @@ function vCalendar(){
   ${(S.water[sel]||[]).length?`<div class="card"><div class="row"><div class="info"><div class="name">Water</div></div><div class="kcal" style="color:var(--cal)">${wFmt(wTotal(sel))}</div></div></div>`:''}
   <div class="btnrow"><button class="btn alt" data-act="calopen" data-k="${sel}">${ents.length?'Edit this day':'Log food for this day'}</button></div>`;
 }
+/* haptics: iOS 18 Safari taps the Taptic Engine when a switch control toggles; other browsers use vibrate */
+const HAPT=$('#hapt')||null;
+function haptic(n=1){const go=()=>{try{const l=document.getElementById('hapt');if(l)l.click();else if(navigator.vibrate)navigator.vibrate(8)}catch(e){}};go();for(let i=1;i<n;i++)setTimeout(go,90*i)}
+let ANIM='fade';
+const TAB_ORDER=['today','menu','picks','calendar','meals','goals'];
 const TITLES={today:'Today',menu:'Menu',picks:'Best Picks',calendar:'Calendar',meals:'My Meals',goals:'Limits'};
 function render(){
   document.querySelectorAll('#nav a').forEach(a=>{const on=a.getAttribute('href')==='#'+S.view;a.classList.toggle('on',on);on?a.setAttribute('aria-current','page'):a.removeAttribute('aria-current')});
   const dated=S.view==='today'||S.view==='picks';
   const title=S.view==='today'?dlabel(S.date):TITLES[S.view];
   const bar=(S.view==='menu'&&S.loc)?'':`${S.view==='goals'?'<a class="backlink" href="#today">‹ Today</a>':''}<div class="titlebar"><h1 class="ltitle">${esc(title)}</h1>${S.view==='today'?'<a class="gear" href="#goals" aria-label="Daily limits and settings"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/></svg></a>':''}${dated?`<div class="datenav"><button data-act="day" data-d="-1" aria-label="Previous day">‹</button><b>${S.view==='today'?esc(dparse(S.date).toLocaleDateString(undefined,{month:'short',day:'numeric'})):esc(dlabel(S.date))}</b><button data-act="day" data-d="1" aria-label="Next day" ${S.date===dkey(new Date())?'disabled style="opacity:.3"':''}>›</button></div>`:''}</div>`;
-  $('#main').innerHTML=`<div class="wrap">${bar}${VIEWS[S.view]()}</div>`;
+  const an=ANIM;ANIM='';
+  $('#main').innerHTML=`<div class="wrap${an?' a-'+an+(an==='stay'?'':' stagger'):''}">${bar}${VIEWS[S.view]()}</div>`;
 }
-function route(){closeSheet();const h=location.hash.slice(1);if(h==='menu'&&S.view!=='menu'){S.loc='';S.q=''}if(h==='calendar'&&S.view!=='calendar'){S.calSel=S.date;S.calMonth=null}if(h==='picks'&&S.view!=='picks'&&S.pickMeal===undefined)S.pickMeal=S.date===dkey(new Date())?mealNow():'';S.view=VIEWS[h]?h:'today';S.shown=40;render();$('#main').scrollTop=0}
+function route(){closeSheet();const h=location.hash.slice(1);{const a=TAB_ORDER.indexOf(S.view),b=TAB_ORDER.indexOf(VIEWS[h]?h:'today');ANIM=a<0||a===b?'fade':b>a?'left':'right'}if(h==='menu'&&S.view!=='menu'){S.loc='';S.q=''}if(h==='calendar'&&S.view!=='calendar'){S.calSel=S.date;S.calMonth=null}if(h==='picks'&&S.view!=='picks'&&S.pickMeal===undefined)S.pickMeal=S.date===dkey(new Date())?mealNow():'';S.view=VIEWS[h]?h:'today';S.shown=40;render();$('#main').scrollTop=0}
 
 /* ---------- sheets ---------- */
 function openSheet(html){$('#panel').innerHTML=html;$('#sheet').classList.add('open')}
@@ -562,13 +605,15 @@ const find=i=>{if(i.startsWith('fav:')){const m=S.favs.find(m=>'fav:'+m.id===i);
 function logAny(it,q=1){if(it.fav){const m=S.favs.find(m=>m.id===it.fav);if(m)m.items.forEach(i=>logItem(i,i.q*q));return}logItem(it,q)}
 document.addEventListener('click',async ev=>{
   if(ev.target.id==='sheet'){closeSheet();return}
+  if(ev.target.closest('a[href^="#"]'))haptic();
   const el=ev.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,did=el.dataset.id,d=+el.dataset.d;
-  if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);if(!S.logs[S.date]){const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[];render();await loadDay(S.date)}render()}
+  if(!/^(quick|logcur)$/.test(a)&&!el.disabled)haptic();
+  if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);ANIM=d>0?'left':'right';if(!S.logs[S.date]){const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[];render();await loadDay(S.date)}render()}
   else if(a==='open'){cur=find(did);curQ=1;if(cur){if(cur.inc)cur={...cur,sel:[...cur.sel]};itemSheet()}}
   else if(a==='side'){const sl=+el.dataset.s;cur.sel[sl]=+el.dataset.x;applySides(cur);itemSheet()}
-  else if(a==='quick'){const it=find(did);if(it){logAny(it);toast('Added '+it.n);if(S.view==='picks')render()}}
+  else if(a==='quick'){const it=find(did);if(it){logAny(it);haptic(2);el.classList.add('done');el.textContent='✓';toast('Added '+fullName(it));if(S.view==='picks')setTimeout(()=>{ANIM='stay';render()},650);else setTimeout(()=>{el.classList.remove('done');el.textContent='+'},1100)}}
   else if(a==='sq'){curQ=Math.max(.5,curQ+d);itemSheet()}
-  else if(a==='logcur'){logAny(cur,curQ);closeSheet();toast('Added '+fullName(cur));render()}
+  else if(a==='logcur'){haptic(2);logAny(cur,curQ);closeSheet();toast('Added '+fullName(cur));render()}
   else if(a==='tomeal'){const m=S.favs.find(m=>m.id===did);m.items.push({n:fullName(cur),loc:cur.loc,q:curQ,np:cur.np||false,b:{...cur.b}});saveFavs();closeSheet();toast('Added to '+m.name)}
   else if(a==='close')closeSheet();
   else if(a==='qty'){const L=S.logs[S.date],e=L.find(e=>e.id===did);e.q+=d;if(e.q<=0)L.splice(L.indexOf(e),1);saveLog();render()}
@@ -578,11 +623,11 @@ document.addEventListener('click',async ev=>{
   else if(a==='newmeal'){const n=$('#newmeal').value.trim();if(!n){$('#newmeal').focus();return}S.favs.push({id:id(),name:n,items:[]});saveFavs();render()}
   else if(a==='savemeal'){const n='Meal from '+dlabel(S.date);S.favs.push({id:id(),name:n,items:(S.logs[S.date]||[]).map(e=>({n:e.n,loc:e.loc,q:e.q,np:!e.pad,b:{...e.b}}))});saveFavs();toast('Saved as “'+n+'”');location.hash='meals'}
   else if(a==='mo'){S.mo=!S.mo;render()}
-  else if(a==='loc'){S.loc=el.dataset.l;S.q='';S.shown=40;render();$('#main').scrollTop=0}
-  else if(a==='locback'){S.loc='';S.q='';S.shown=40;render();$('#main').scrollTop=0}
+  else if(a==='loc'){ANIM='push';S.loc=el.dataset.l;S.q='';S.shown=40;render();$('#main').scrollTop=0}
+  else if(a==='locback'){ANIM='pop';S.loc='';S.q='';S.shown=40;render();$('#main').scrollTop=0}
   else if(a==='jump'){const h=document.getElementById('cat-'+el.dataset.x);if(h)h.scrollIntoView({behavior:matchMedia('(prefers-reduced-motion: reduce)').matches?'auto':'smooth',block:'start'})}
   else if(a==='calday'){S.calSel=el.dataset.k;render()}
-  else if(a==='calmo'){const m=S.calMonth;S.calMonth=new Date(m.getFullYear(),m.getMonth()+d,1);render()}
+  else if(a==='calmo'){ANIM=d>0?'left':'right';const m=S.calMonth;S.calMonth=new Date(m.getFullYear(),m.getMonth()+d,1);render()}
   else if(a==='calopen'){S.date=el.dataset.k;if(!S.logs[S.date])await loadDay(S.date);location.hash='today'}
   else if(a==='export'){const txt=await exportData();let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(e){}
     if(ok)toast('Backup copied');else{const t=$('#bk');t.value=txt;t.select();$('#bkmsg').textContent='Copy the text in the box above.'}}
