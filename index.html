@@ -170,6 +170,20 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .day.sel{background:var(--accent)}.day.sel span{color:var(--accent-ink);font-weight:700}
 .day.sel .tr{stroke:transparent}.day.sel .pr{stroke:var(--accent-ink)!important;opacity:.6}
 .day:disabled span{color:var(--faint)}
+.water{background:var(--card);border-radius:var(--r);padding:14px 16px 12px;margin-bottom:22px}
+.whead{display:flex;justify-content:space-between;align-items:baseline;gap:10px}
+.whead .k{display:flex;align-items:center;gap:6px;font-weight:600;font-size:15px}
+.whead .k svg{width:16px;height:16px;fill:var(--cal)}
+.whead .v{font:600 19px var(--round);font-variant-numeric:tabular-nums;white-space:nowrap}
+.whead .v small{font:500 13px var(--body);color:var(--mute)}
+.wbar{height:10px;border-radius:99px;background:color-mix(in srgb,var(--cal) 16%,transparent);overflow:hidden;margin:10px 0 12px}
+.wbar i{display:block;height:100%;border-radius:99px;background:linear-gradient(90deg,color-mix(in srgb,var(--cal) 70%,#7fd3ff),var(--cal));transition:width .5s cubic-bezier(.2,.8,.2,1)}
+.wbtns{display:flex;gap:8px}
+.wbtn{flex:1;background:color-mix(in srgb,var(--cal) 13%,transparent);color:var(--cal);border-radius:10px;padding:8px 0;font-size:14px;font-weight:600;white-space:nowrap;transition:transform .12s}
+.wbtn:active{transform:scale(.94)}
+.wbtn.undo{flex:0 0 40px;background:var(--fill);color:var(--mute);font-size:17px}
+.wbtn:disabled{opacity:.35}
+.day.wok::after{content:"";position:absolute;bottom:-3px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--cal)}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:370px){.rings{width:144px;height:144px}.rings .big{font-size:20px}.hero{gap:12px;padding:14px}}
 </style>
@@ -188,8 +202,8 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 const NUT=[['cal','Calories',''],['pro','Protein','g'],['carb','Carbs','g'],['fat','Fat','g'],['sat','Saturated fat','g'],['trans','Trans fat','g'],['chol','Cholesterol','mg'],['sod','Sodium','mg'],['fib','Fiber','g'],['sug','Sugars','g']];
 const KEYS=NUT.map(n=>n[0]), MAIN=['cal','pro','carb','fat'], GOAL={pro:1,fib:1};
 const LABEL=Object.fromEntries(NUT.map(n=>[n[0],n[1]])), UNIT=Object.fromEntries(NUT.map(n=>[n[0],n[2]]));
-const DEF={pad:15,custom:false,lim:{cal:2400,pro:150,carb:270,fat:80,sat:0,trans:0,chol:0,sod:2300,fib:0,sug:0}};
-const S={view:'today',date:dkey(new Date()),settings:structuredClone(DEF),logs:{},favs:[],custom:[],menu:[],menuUpdated:null,menuState:'loading',q:'',loc:'',mo:false,shown:40,sync:'local',pickLoc:''};
+const DEF={pad:15,custom:false,waterGoal:100,waterUnit:'oz',lim:{cal:2400,pro:150,carb:270,fat:80,sat:0,trans:0,chol:0,sod:2300,fib:0,sug:0}};
+const S={water:{},view:'today',date:dkey(new Date()),settings:structuredClone(DEF),logs:{},favs:[],custom:[],menu:[],menuUpdated:null,menuState:'loading',q:'',loc:'',mo:false,shown:40,sync:'local',pickLoc:''};
 let db=null,uid=null;const chains={};
 
 function dkey(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
@@ -209,9 +223,9 @@ function save(k,v){lsSet(k,v);if(!db||!uid)return;const data=JSON.parse(JSON.str
   chains[k]=(chains[k]||Promise.resolve()).then(()=>ref(k).set(data)).then(()=>{S.sync='account'},()=>{S.sync='error';if(S.view==='goals')render()});}
 async function load(k){if(db&&uid){try{const s=await ref(k).get();if(s.exists)return JSON.parse(JSON.stringify(s.data()));const l=lsGet(k);if(l)save(k,l);return l}catch(e){S.sync='error'}}return lsGet(k)}
 function applySettings(d){if(d)S.settings={...DEF,...d,lim:{...DEF.lim,...(d.lim||{})}}}
-async function loadDay(k){const d=await load('log-'+k);S.logs[k]=(d&&d.entries)||[]}
+async function loadDay(k){const d=await load('log-'+k);S.logs[k]=(d&&d.entries)||[];S.water[k]=(d&&d.water)||[]}
 async function loadAll(){const [st,fv,cu]=await Promise.all([load('settings'),load('favs'),load('custom')]);applySettings(st);S.favs=(fv&&fv.meals)||[];S.custom=(cu&&cu.items)||[];await loadDay(S.date)}
-const saveLog=()=>save('log-'+S.date,{entries:S.logs[S.date]||[]});
+const saveLog=(k=S.date)=>save('log-'+k,{entries:S.logs[k]||[],water:S.water[k]||[]});
 const saveFavs=()=>save('favs',{meals:S.favs});
 const HIDDEN_LOCS=/^(Marketplace|Duke Marine Lab)$/i; // not used, per Nebil
 async function loadMenu(){
@@ -311,6 +325,18 @@ function menuNotice(){
   if(S.menuState==='empty')return '<div class="empty"><b>Duke Dining items aren\'t loaded yet</b>Menu and nutrition data will appear here after the first NetNutrition pull. Until then, add your own foods below.</div>';
   return '';
 }
+
+/* ---------- water ---------- */
+const ML=29.5735;
+const wTotal=(k=S.date)=>(S.water[k]||[]).reduce((s,x)=>s+x,0);
+const wFmt=oz=>S.settings.waterUnit==='ml'?Math.round(oz*ML).toLocaleString()+' mL':(Math.round(oz*10)/10).toLocaleString()+' oz';
+const wQuick=()=>S.settings.waterUnit==='ml'?[[250/ML,'250 mL'],[500/ML,'500 mL'],[750/ML,'750 mL'],[1000/ML,'1 L']]:[[8,'8 oz'],[12,'12 oz'],[16.9,'16.9 oz'],[24,'24 oz']];
+function waterCard(){
+  const tot=wTotal(),goal=S.settings.waterGoal||0,goalOz=S.settings.waterUnit==='ml'?goal/ML:goal,pc=goalOz?Math.min(1,tot/goalOz):0,hit=goalOz&&tot>=goalOz,n=(S.water[S.date]||[]).length;
+  return `<div class="water"><div class="whead"><span class="k"><svg viewBox="0 0 20 20" aria-hidden="true"><path d="M10 2.5c3 3.6 5.5 6.6 5.5 9.6a5.5 5.5 0 0 1-11 0c0-3 2.5-6 5.5-9.6z"/></svg>Water ${hit?'<span class="pill hit">Goal hit</span>':''}</span><span class="v">${wFmt(tot)}<small> / ${goal?goal.toLocaleString()+' '+(S.settings.waterUnit==='ml'?'mL':'oz'):'no goal'}</small></span></div>
+    <div class="wbar" role="progressbar" aria-label="Water toward daily goal" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${Math.round(pc*100)}"><i style="width:${pc*100}%"></i></div>
+    <div class="wbtns">${wQuick().map(([oz,l])=>`<button class="wbtn" data-act="water" data-oz="${oz}">+ ${l}</button>`).join('')}<button class="wbtn undo" data-act="waterundo" ${n?'':'disabled'} aria-label="Undo last water">↺</button></div></div>`;
+}
 function vToday(){
   const t=totals(),L=S.settings.lim,ents=S.logs[S.date]||[],over=L.cal&&t.cal>L.cal,rem=L.cal-t.cal;
   const R=[['cal',78],['pro',66],['carb',54],['fat',42]];
@@ -322,6 +348,7 @@ function vToday(){
   return `${S.settings.custom?'':'<div class="banner"><span>These limits are starter numbers.</span><a class="btn sm" href="#goals">Set yours</a></div>'}
   <div class="hero"><div class="rings"><svg viewBox="0 0 168 168" aria-hidden="true">${R.map(ring).join('')}</svg><div class="mid"><span class="big" style="${over?'color:var(--crit)':''}">${r0(Math.abs(rem)).toLocaleString()}</span><small>CAL ${over?'OVER':'LEFT'}</small></div></div>
     <div class="legend">${['cal','pro','carb','fat'].map(lg).join('')}</div></div>
+  ${waterCard()}
   ${S.favs.length?`<h2>Quick add a saved meal</h2><div class="chips">${S.favs.map(m=>`<button class="chip" data-act="logmeal" data-id="${m.id}">+ ${esc(m.name)}</button>`).join('')}</div>`:''}
   <h2>Eaten ${dlabel(S.date).toLowerCase()}</h2>
   <div class="card">${ents.length?ents.map(e=>`<div class="row"><div class="info"><div class="name">${esc(e.n)}</div><div class="sub">${esc(e.loc)}</div>${macroLine(k=>val(e,k))}</div><div style="display:flex;flex-direction:column;align-items:flex-end"><div class="kcal">${r0(val(e,'cal')).toLocaleString()}<small>cal</small></div><div class="stepper"><button data-act="qty" data-id="${e.id}" data-d="-0.5" aria-label="Less">−</button><b>${r1(e.q)}×</b><button data-act="qty" data-id="${e.id}" data-d="0.5" aria-label="More">+</button></div></div></div>`).join(''):'<div class="empty"><b>Nothing logged yet</b>Add what you ate from the menu, or quick add a saved meal.</div>'}</div>
@@ -385,6 +412,7 @@ function vGoals(){
   return `<h2>Daily limits</h2><div class="card p"><div class="grid2">${MAIN.map(f).join('')}</div></div>
   <h2>Other nutrients</h2><div class="card p"><div class="grid2">${KEYS.filter(k=>!MAIN.includes(k)).map(f).join('')}</div><p class="note">Leave blank to track without a limit.</p></div>
   <h2>Portion buffer</h2><div class="card p"><label class="field" for="pad">Add <span><b class="num" id="padv" style="font-size:20px;color:var(--ink)">+${S.settings.pad}%</b> to every listed number</span><input type="range" id="pad" min="0" max="40" step="5" value="${S.settings.pad}"></label><p class="note">Dining hall servings tend to run larger than the listed portion. Changing this affects new entries, not ones already logged.</p></div>
+  <h2>Water</h2><div class="card p"><div class="grid2"><label class="field" for="wgoal">Daily goal<input type="number" inputmode="numeric" min="0" id="wgoal" value="${S.settings.waterGoal||''}" placeholder="No goal"></label><label class="field" for="wunit">Unit<select id="wunit"><option value="oz" ${S.settings.waterUnit!=='ml'?'selected':''}>Ounces (oz)</option><option value="ml" ${S.settings.waterUnit==='ml'?'selected':''}>Milliliters (mL)</option></select></label></div></div>
   ${vBackup()}
   <p class="note">${S.sync==='account'||(db&&uid&&S.sync!=='error')?'Your log, meals and limits are saved to your Claude account and follow you across devices.':S.sync==='error'?'Your last change could not be saved to your account. It is kept on this device.':'Your data is saved on this device. Use Copy backup now and then to keep a copy.'}</p>`;
 }
@@ -395,15 +423,15 @@ function vBackup(){return `<h2>Backup &amp; transfer</h2><div class="card p">
   <button class="btn" data-act="import">Restore from backup</button><p class="note" id="bkmsg" style="margin:10px 0 0"></p></div>`}
 async function exportData(){
   allLogsLoaded=false;await loadAllLogs();
-  const logs={};Object.entries(S.logs).forEach(([k,v])=>{if(v&&v.length)logs[k]=v});
-  return JSON.stringify({app:'duke-macros',v:1,exported:new Date().toISOString(),settings:S.settings,favs:S.favs,custom:S.custom,logs});
+  const logs={},water={};Object.entries(S.logs).forEach(([k,v])=>{if(v&&v.length)logs[k]=v});Object.entries(S.water).forEach(([k,v])=>{if(v&&v.length)water[k]=v});
+  return JSON.stringify({app:'duke-macros',v:1,exported:new Date().toISOString(),settings:S.settings,favs:S.favs,custom:S.custom,logs,water});
 }
 function importData(txt){
   const d=JSON.parse(txt);if(!d||d.app!=='duke-macros')throw new Error('That is not a Duke Macros backup.');
   if(d.settings){applySettings(d.settings);save('settings',S.settings)}
   const mergeBy=(cur,inc)=>{const ids=new Set(cur.map(x=>x.id));return cur.concat((inc||[]).filter(x=>!ids.has(x.id)))};
   S.favs=mergeBy(S.favs,d.favs);saveFavs();S.custom=mergeBy(S.custom,d.custom);save('custom',{items:S.custom});
-  let days=0;Object.entries(d.logs||{}).forEach(([k,v])=>{const merged=mergeBy(S.logs[k]||[],v);if(merged.length!==(S.logs[k]||[]).length){S.logs[k]=merged;save('log-'+k,{entries:merged});days++}});
+  let days=0;const ks=new Set([...Object.keys(d.logs||{}),...Object.keys(d.water||{})]);ks.forEach(k=>{const merged=mergeBy(S.logs[k]||[],(d.logs||{})[k]);let ch=merged.length!==(S.logs[k]||[]).length;if(ch)S.logs[k]=merged;const w=(d.water||{})[k];if(w&&w.length&&!(S.water[k]||[]).length){S.water[k]=w;ch=true}if(ch){saveLog(k);days++}});
   return days;
 }
 const VIEWS={today:vToday,menu:vMenu,picks:vPicks,calendar:vCalendar,meals:vMeals,goals:vGoals};
@@ -412,8 +440,8 @@ const VIEWS={today:vToday,menu:vMenu,picks:vPicks,calendar:vCalendar,meals:vMeal
 let allLogsLoaded=false;
 async function loadAllLogs(){
   if(allLogsLoaded)return;allLogsLoaded=true;
-  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('dm:log-')){const d=k.slice(7);if(S.logs[d]===undefined)S.logs[d]=(lsGet(k.slice(3))||{}).entries||[]}}}catch(e){}
-  if(db&&uid){try{const q=await db.collection('data/users/'+uid).get();q.docs.forEach(d=>{if(d.id.startsWith('log-')){const k=d.id.slice(4),v=d.data()||{};if(S.logs[k]===undefined||!S.logs[k].length)S.logs[k]=JSON.parse(JSON.stringify(v.entries||[]))}})}catch(e){}}
+  try{for(let i=0;i<localStorage.length;i++){const k=localStorage.key(i);if(k&&k.startsWith('dm:log-')){const d=k.slice(7);const v=lsGet(k.slice(3))||{};if(S.logs[d]===undefined)S.logs[d]=v.entries||[];if(S.water[d]===undefined)S.water[d]=v.water||[]}}}catch(e){}
+  if(db&&uid){try{const q=await db.collection('data/users/'+uid).get();q.docs.forEach(d=>{if(d.id.startsWith('log-')){const k=d.id.slice(4),v=d.data()||{};if(!(S.water[k]||[]).length&&v.water)S.water[k]=JSON.parse(JSON.stringify(v.water));if(S.logs[k]===undefined||!S.logs[k].length)S.logs[k]=JSON.parse(JSON.stringify(v.entries||[]))}})}catch(e){}}
   if(S.view==='calendar')render();
 }
 function vCalendar(){
@@ -427,7 +455,9 @@ function vCalendar(){
   for(let d=1;d<=days;d++){const k=dkey(new Date(y,mo,d)),ents=S.logs[k]||[],has=ents.length>0,fut=k>today;
     let ring='';if(has){const t=totals(k);logged.push(t);const pc=L.cal?Math.min(1,t.cal/L.cal):0,ov=L.cal&&t.cal>L.cal,C=2*Math.PI*15;
       ring=`<svg viewBox="0 0 36 36" aria-hidden="true"><circle cx="18" cy="18" r="15" class="tr"/><circle cx="18" cy="18" r="15" class="pr" style="stroke:var(--${ov?'crit':'cal'})" stroke-dasharray="${C}" stroke-dashoffset="${C*(1-pc)}"/></svg>`}
-    cells.push(`<button class="day${k===sel?' sel':''}${k===today?' now':''}${has?' has':''}" data-act="calday" data-k="${k}" ${fut?'disabled':''} aria-label="${dparse(k).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}${has?', logged':''}">${ring}<span>${d}</span></button>`)}
+    const wg=S.settings.waterGoal?(S.settings.waterUnit==='ml'?S.settings.waterGoal/ML:S.settings.waterGoal):0;const wOk=wg&&wTotal(k)>=wg;
+    cells.push(`<button class="day${k===sel?' sel':''}${k===today?' now':''}${has?' has':''}${wOk?' wok':''}" data-act="calday" data-k="${k}" ${fut?'disabled':''} aria-label="${dparse(k).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'})}${has?', logged':''}">${ring}<span>${d}</span></button>`)}
+  const wDays=[];for(let d=1;d<=days;d++){const k=dkey(new Date(y,mo,d));if((S.water[k]||[]).length)wDays.push(wTotal(k))}
   const n=logged.length,avg=k=>n?r0(logged.reduce((s,t)=>s+t[k],0)/n):0,overDays=logged.filter(t=>L.cal&&t.cal>L.cal).length;
   const ents=S.logs[sel]||[],t=totals(sel);
   return `<div class="card p calcard">
@@ -435,9 +465,10 @@ function vCalendar(){
     <div class="dow">${['S','M','T','W','T','F','S'].map(x=>`<span>${x}</span>`).join('')}</div>
     <div class="grid">${cells.join('')}</div></div>
   <h2>${m.toLocaleDateString(undefined,{month:'long'})} so far</h2>
-  <div class="card p"><div class="others"><div><b>${n}</b><small>day${n===1?'':'s'} logged</small></div><div><b>${avg('cal').toLocaleString()}</b><small>avg calories</small></div><div><b>${avg('pro')}g</b><small>avg protein</small></div><div><b>${avg('carb')}g</b><small>avg carbs</small></div><div><b>${avg('fat')}g</b><small>avg fat</small></div><div class="${overDays?'x':''}"><b>${overDays}</b><small>over calorie limit</small></div></div></div>
+  <div class="card p"><div class="others"><div><b>${n}</b><small>day${n===1?'':'s'} logged</small></div><div><b>${avg('cal').toLocaleString()}</b><small>avg calories</small></div><div><b>${avg('pro')}g</b><small>avg protein</small></div><div><b>${avg('carb')}g</b><small>avg carbs</small></div><div><b>${avg('fat')}g</b><small>avg fat</small></div><div class="${overDays?'x':''}"><b>${overDays}</b><small>over calorie limit</small></div><div><b>${wDays.length?wFmt(wDays.reduce((a,b)=>a+b,0)/wDays.length):'–'}</b><small>avg water</small></div></div></div>
   <h2>${esc(dparse(sel).toLocaleDateString(undefined,{weekday:'long',month:'long',day:'numeric'}))}</h2>
   <div class="card">${ents.length?`<div class="row"><div class="info"><div class="name" style="font-weight:600;${L.cal&&t.cal>L.cal?'color:var(--crit)':''}">${r0(t.cal).toLocaleString()} cal <span class="sub" style="font-weight:400">of ${L.cal.toLocaleString()}</span></div>${macroLine(k=>t[k])}</div></div>`+ents.map(e=>`<div class="row"><div class="info"><div class="name">${esc(e.n)}${e.q!==1?` <span class="sub">× ${r1(e.q)}</span>`:''}</div><div class="sub">${esc(e.loc)}</div></div><div class="kcal">${r0(val(e,'cal')).toLocaleString()}<small>cal</small></div></div>`).join(''):`<div class="empty"><b>Nothing logged</b>${sel===today?'Add food from the Menu tab.':'You can still add food to this day.'}</div>`}</div>
+  ${(S.water[sel]||[]).length?`<div class="card"><div class="row"><div class="info"><div class="name">Water</div></div><div class="kcal" style="color:var(--cal)">${wFmt(wTotal(sel))}</div></div></div>`:''}
   <div class="btnrow"><button class="btn alt" data-act="calopen" data-k="${sel}">${ents.length?'Edit this day':'Log food for this day'}</button></div>`;
 }
 const TITLES={today:'Today',menu:'Menu',picks:'Best Picks',calendar:'Calendar',meals:'My Meals',goals:'Limits'};
@@ -480,7 +511,7 @@ function logAny(it,q=1){if(it.fav){const m=S.favs.find(m=>m.id===it.fav);if(m)m.
 document.addEventListener('click',async ev=>{
   if(ev.target.id==='sheet'){closeSheet();return}
   const el=ev.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,did=el.dataset.id,d=+el.dataset.d;
-  if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);if(!S.logs[S.date]){S.logs[S.date]=(lsGet('log-'+S.date)||{}).entries||[];render();await loadDay(S.date)}render()}
+  if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);if(!S.logs[S.date]){const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[];render();await loadDay(S.date)}render()}
   else if(a==='open'){cur=find(did);curQ=1;if(cur)itemSheet()}
   else if(a==='quick'){const it=find(did);if(it){logAny(it);toast('Added '+it.n);if(S.view==='picks')render()}}
   else if(a==='sq'){curQ=Math.max(.5,curQ+d);itemSheet()}
@@ -503,6 +534,8 @@ document.addEventListener('click',async ev=>{
   else if(a==='export'){const txt=await exportData();let ok=false;try{await navigator.clipboard.writeText(txt);ok=true}catch(e){}
     if(ok)toast('Backup copied');else{const t=$('#bk');t.value=txt;t.select();$('#bkmsg').textContent='Copy the text in the box above.'}}
   else if(a==='import'){const t=$('#bk');try{const n=importData(t.value.trim());t.value='';$('#bkmsg').textContent='Restored. '+n+' day'+(n===1?'':'s')+' of log added.';toast('Backup restored')}catch(e){$('#bkmsg').textContent=e.message.startsWith('That')?e.message:'That text could not be read as a backup. Copy it again and paste the whole thing.'}}
+  else if(a==='water'){(S.water[S.date] ||= []).push(+el.dataset.oz);saveLog();render()}
+  else if(a==='waterundo'){(S.water[S.date]||[]).pop();saveLog();render()}
   else if(a==='pickmo'){S.pickMo=!S.pickMo;render()}
   else if(a==='more'){S.shown+=40;render()}
   else if(a==='custom')customSheet();
@@ -514,6 +547,8 @@ document.addEventListener('input',ev=>{const t=ev.target;
   else if(t.id==='pad'){$('#padv').textContent='+'+t.value+'%'}
 });
 document.addEventListener('change',ev=>{const t=ev.target;
+  if(t.id==='wgoal'){S.settings.waterGoal=Math.max(0,Math.round(+t.value||0));save('settings',S.settings);return}
+  if(t.id==='wunit'){const g=S.settings.waterGoal||0,toMl=t.value==='ml'&&S.settings.waterUnit!=='ml',toOz=t.value==='oz'&&S.settings.waterUnit==='ml';S.settings.waterUnit=t.value;if(toMl)S.settings.waterGoal=Math.round(g*ML/50)*50;if(toOz)S.settings.waterGoal=Math.round(g/ML);save('settings',S.settings);render();return}
   if(t.id==='loc'){S.loc=t.value;S.shown=40;render()}
   else if(t.id==='pickloc'){S.pickLoc=t.value;render()}
   else if(t.id==='pad'){S.settings.pad=+t.value;S.settings.custom=true;save('settings',S.settings)}
@@ -524,7 +559,7 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeSheet()});
 
 /* ---------- start ---------- */
 (async function(){
-  applySettings(lsGet('settings'));S.favs=(lsGet('favs')||{}).meals||[];S.custom=(lsGet('custom')||{}).items||[];S.logs[S.date]=(lsGet('log-'+S.date)||{}).entries||[];
+  applySettings(lsGet('settings'));S.favs=(lsGet('favs')||{}).meals||[];S.custom=(lsGet('custom')||{}).items||[];{const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[]}
   route();
   try{const c=window.claude;if(c&&c.use){const [d,u]=await Promise.all([c.use('db'),c.use('user')]);db=d;uid=u?await u.id():null}}catch(e){}
   if(db&&uid){S.sync='account';await loadAll();render()}
