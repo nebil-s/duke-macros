@@ -227,8 +227,6 @@ nav a.on svg{animation:tabbounce .5s var(--spring)}
 .toast.show{transition:transform .45s var(--spring),opacity .25s}
 .wrap.stagger .rings .v{animation:ringIn 1s cubic-bezier(.2,.8,.2,1) backwards}
 @keyframes ringIn{from{stroke-dashoffset:var(--c)}}
-.hxp{position:relative}
-input.hx{position:absolute;inset:0;width:100%;height:100%;margin:0;padding:0;opacity:.011;z-index:3;cursor:pointer;border-radius:inherit;font-size:0}
 @media (prefers-reduced-motion:reduce){*,*::before{animation:none!important;transition:none!important}}
 
 @media (max-width:370px){.rings{width:144px;height:144px}.rings .big{font-size:20px}.hero{gap:12px;padding:14px}}
@@ -559,12 +557,6 @@ function vCalendar(){
   ${(S.water[sel]||[]).length?`<div class="card"><div class="row"><div class="info"><div class="name">Water</div></div><div class="kcal" style="color:var(--cal)">${wFmt(wTotal(sel))}</div></div></div>`:''}
   <div class="btnrow"><button class="btn alt" data-act="calopen" data-k="${sel}">${ents.length?'Edit this day':'Log food for this day'}</button></div>`;
 }
-/* haptics: iOS only taps the Taptic Engine when your finger actually toggles a native switch, so every
-   tappable control carries an invisible switch on top. The tap still reaches the button through bubbling. */
-const HX_SEL='button:not(:disabled),a[href^="#"],.chip';
-function armHaptics(root=document){root.querySelectorAll(HX_SEL).forEach(el=>{if(el.querySelector(':scope>input.hx'))return;el.classList.add('hxp');const i=document.createElement('input');i.type='checkbox';i.setAttribute('switch','');i.className='hx';i.tabIndex=-1;i.setAttribute('aria-hidden','true');el.appendChild(i)})}
-let hxQ=0;new MutationObserver(()=>{if(!hxQ)hxQ=requestAnimationFrame(()=>{hxQ=0;armHaptics()})}).observe(document.documentElement,{childList:true,subtree:true});
-function haptic(){try{if(navigator.vibrate)navigator.vibrate(8)}catch(e){}}
 let ANIM='fade';
 const TAB_ORDER=['today','menu','picks','calendar','meals','goals'];
 const TITLES={today:'Today',menu:'Menu',picks:'Best Picks',calendar:'Calendar',meals:'My Meals',goals:'Limits'};
@@ -608,15 +600,13 @@ const find=i=>{if(i.startsWith('fav:')){const m=S.favs.find(m=>'fav:'+m.id===i);
 function logAny(it,q=1){if(it.fav){const m=S.favs.find(m=>m.id===it.fav);if(m)m.items.forEach(i=>logItem(i,i.q*q));return}logItem(it,q)}
 document.addEventListener('click',async ev=>{
   if(ev.target.id==='sheet'){closeSheet();return}
-  if(ev.target.classList&&ev.target.classList.contains('hx')){const a=ev.target.parentElement;if(a&&a.matches('a[href^="#"]')){haptic();if(location.hash===a.getAttribute('href'))route();else location.hash=a.getAttribute('href');return}}
   const el=ev.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,did=el.dataset.id,d=+el.dataset.d;
-  if(!/^(quick|logcur)$/.test(a)&&!el.disabled)haptic();
   if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);ANIM=d>0?'left':'right';if(!S.logs[S.date]){const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[];render();await loadDay(S.date)}render()}
   else if(a==='open'){cur=find(did);curQ=1;if(cur){if(cur.inc)cur={...cur,sel:[...cur.sel]};itemSheet()}}
   else if(a==='side'){const sl=+el.dataset.s;cur.sel[sl]=+el.dataset.x;applySides(cur);itemSheet()}
-  else if(a==='quick'){const it=find(did);if(it){logAny(it);haptic();el.classList.add('done');el.textContent='✓';toast('Added '+fullName(it));if(S.view==='picks')setTimeout(()=>{ANIM='stay';render()},650);else setTimeout(()=>{el.classList.remove('done');el.textContent='+'},1100)}}
+  else if(a==='quick'){const it=find(did);if(it){logAny(it);el.classList.add('done');el.textContent='✓';toast('Added '+fullName(it));if(S.view==='picks')setTimeout(()=>{ANIM='stay';render()},650);else setTimeout(()=>{el.classList.remove('done');el.textContent='+'},1100)}}
   else if(a==='sq'){curQ=Math.max(.5,curQ+d);itemSheet()}
-  else if(a==='logcur'){haptic();logAny(cur,curQ);closeSheet();toast('Added '+fullName(cur));render()}
+  else if(a==='logcur'){logAny(cur,curQ);closeSheet();toast('Added '+fullName(cur));render()}
   else if(a==='tomeal'){const m=S.favs.find(m=>m.id===did);m.items.push({n:fullName(cur),loc:cur.loc,q:curQ,np:cur.np||false,b:{...cur.b}});saveFavs();closeSheet();toast('Added to '+m.name)}
   else if(a==='close')closeSheet();
   else if(a==='qty'){const L=S.logs[S.date],e=L.find(e=>e.id===did);e.q+=d;if(e.q<=0)L.splice(L.indexOf(e),1);saveLog();render()}
