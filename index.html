@@ -320,13 +320,13 @@ function makeBuilds(items){
       if(!hits.length){ok=false;return}const pick=(B.size&&hits.find(h=>B.size.test(h.z)))||hits.find(h=>!h.z)||hits[0];(all?hits:[pick]).forEach(h=>comps.push(h))});
     if(!ok||!comps.length)return;
     const b={};KEYS.forEach(k=>b[k]=comps.reduce((s,c)=>s+(c.b[k]||0),0));
-    out.push({id:'build:'+bi,n:B.name,loc:B.loc,cat:'Typical builds',srv:'',b,build:true,comps:comps.map(c=>c.n+(c.srv&&!c.z?' ('+c.srv+')':'')),mo:comps.some(c=>c.mo),role:'dish'});
+    out.push({id:'build:'+bi,n:B.name,bn:B.name,loc:B.loc,cat:'Typical builds',srv:'',b,build:true,comps:comps.map(c=>c.n+(c.srv&&!c.z?' ('+c.srv+')':'')),mo:comps.some(c=>c.mo),role:'dish'});
   });
   // Tandoor combos: one curry + basmati rice pilaf + naan (biryani is already rice, so it gets naan only)
   const T='Tandoor Indian Cuisine',rice=items.find(i=>i.loc===T&&/^basmati rice pilaf$/i.test(i.bn)),naan=items.find(i=>i.loc===T&&/^naan$/i.test(i.bn));
   if(rice&&naan){const seen=new Set();items.filter(i=>i.loc===T&&/entr|vegetarian|lunch special/i.test(i.cat)&&!i.warn).forEach((c,ci)=>{
     const key=c.bn.toLowerCase();if(seen.has(key))return;seen.add(key);const comps=/biryani/i.test(c.bn)?[c,naan]:[c,rice,naan],b={};KEYS.forEach(k=>b[k]=comps.reduce((s,x)=>s+(x.b[k]||0),0));
-    out.push({id:'build:t'+ci,n:c.bn.replace(/\s*contains coconut/i,'')+' Combo',loc:T,cat:'Typical builds',srv:'',b,build:true,comps:comps.map(x=>x.n+(x.srv&&!x.z?' ('+x.srv+')':'')),mo:comps.some(x=>x.mo),role:'dish'})})}
+    out.push({id:'build:t'+ci,veg:/vegetarian/i.test(c.cat),n:c.bn.replace(/\s*contains coconut/i,'')+' Combo',bn:c.bn.replace(/\s*contains coconut/i,'')+' Combo',loc:T,cat:'Typical builds',srv:'',b,build:true,comps:comps.map(x=>x.n+(x.srv&&!x.z?' ('+x.srv+')':'')),mo:comps.some(x=>x.mo),role:'dish'})})}
   return out;
 }
 // Flag milk-variant drinks whose numbers don't line up with their siblings (likely data-entry errors at Duke)
@@ -357,21 +357,26 @@ const SIDE_RULES=[
   {loc:JB,cat:/choose 1 side/i,slots:[['Side',{cat:/durham market sides/i,name:NOT_ROLL}]]},
   {loc:JB,dish:/paella/i,slots:[['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
   {loc:JB,cat:/chop house|carved to order|seafood on the grill/i,slots:[['Entrée side',{cat:/durham market sides/i,name:NOT_ROLL}],['Second side',{cat:/durham market sides/i,name:NOT_ROLL}],['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
+  {loc:'Il Forno',cat:/pasta station|typical builds/i,slots:[['Breadstick',{name:/^breadsticks?$/i}]]},
+  {loc:'Cafe',cat:/hot sandwiches/i,slots:[['Chips',{name:/chips/i}]]},
+  {loc:'Tandoor Indian Cuisine',dish:/combo$/i,test:d=>!d.veg,slots:[['Vegetable',{cat:/vegetarian dishes/i,def:-1,parts:true}],['Second protein',{cat:/durham market entr|lunch special/i,name:/^(?!.*biryani).*/i,def:-1,parts:true}]]},
+  {loc:'Tandoor Indian Cuisine',dish:/combo$/i,test:d=>d.veg,slots:[['Second vegetable',{cat:/vegetarian dishes/i,def:-1,parts:true}]]},
+  {loc:'Sprout',cat:/^entree$/i,from:['The Farmstead','Sprout'],slots:[['Meal side',{cat:/^sides$/i}],['Second side',{cat:/^sides$/i}]]},
   {loc:'The Farmstead',cat:/^entree$|carving station/i,from:['The Farmstead','Sprout'],slots:[['Meal side',{cat:/^sides$/i}],['Second side',{cat:/^sides$/i}]]},
   {loc:'The Farmstead',dish:/gyro|wrap|shawarma|sandwich|slider|avocado|burger/i,slots:[['Whole fruit',{name:/^(whole )?(red delicious )?(apple|banana|orange)$/i}]]},
 ];
 function sideScore(o){return (o.b.pro||0)*4-(o.b.cal||0)*.3}
 function attachSides(items){
-  SIDE_RULES.forEach(R=>items.filter(d=>d.loc===R.loc&&d.role==='dish'&&(!R.dish||R.dish.test(d.bn))&&(!R.cat||R.cat.test(d.cat))&&!d.inc).forEach(d=>{
-    const slots=R.slots.map(([label,f])=>{const seen=new Set(),opts=items.filter(o=>o!==d&&(R.from?R.from.includes(o.loc):o.loc===d.loc)&&!o.warn&&(f.name?f.name.test(o.bn):true)&&(f.cat?f.cat.test(o.cat)&&o.role!=='part':true)).filter(o=>{const k=o.bn.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return {label,opts,none:f.none!==false}}).filter(sl=>sl.opts.length);
+  SIDE_RULES.forEach(R=>items.filter(d=>d.loc===R.loc&&d.role==='dish'&&(!R.dish||R.dish.test(d.bn))&&(!R.cat||R.cat.test(d.cat))&&(!R.test||R.test(d))&&!d.inc).forEach(d=>{
+    const slots=R.slots.map(([label,f])=>{const seen=new Set(),opts=items.filter(o=>o!==d&&(R.from?R.from.includes(o.loc):o.loc===d.loc)&&!o.warn&&(f.name?f.name.test(o.bn):true)&&(f.cat?f.cat.test(o.cat)&&(f.parts||o.role!=='part'):true)&&!o.build).filter(o=>{const k=o.bn.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return {label,opts,none:f.none!==false,def:f.def}}).filter(sl=>sl.opts.length);
     if(!slots.length)return;d.inc=slots;d.base={...d.b};
-    const used=new Set();d.sel=slots.map(sl=>{let best=-1,bs=-1e9;sl.opts.forEach((o,i)=>{const sc=sideScore(o)-(used.has(o)?50:0);if(sc>bs){bs=sc;best=i}});if(best>=0)used.add(sl.opts[best]);return best});
+    const used=new Set();d.sel=slots.map(sl=>{if(sl.def===-1)return -1;let best=-1,bs=-1e9;sl.opts.forEach((o,i)=>{const sc=sideScore(o)-(used.has(o)?50:0);if(sc>bs){bs=sc;best=i}});if(best>=0)used.add(sl.opts[best]);return best});
     applySides(d)}));
 }
 function applySides(d){const b={...d.base};d.inc.forEach((sl,i)=>{const o=sl.opts[d.sel[i]];if(o)KEYS.forEach(k=>b[k]=(b[k]||0)+(o.b[k]||0))});d.b=b}
 const sideNames=it=>it.inc?it.inc.map((sl,i)=>sl.opts[it.sel[i]]).filter(Boolean).map(o=>o.bn):[];
 const fullName=it=>it.inc&&sideNames(it).length?it.n+' + '+sideNames(it).join(' + '):it.n;
-function postProcess(items){items.forEach(i=>i.role=roleOf(i));flagOutliers(items);flagSizes(items);attachSides(items);return makeBuilds(items).concat(items)}
+function postProcess(items){items.forEach(i=>i.role=roleOf(i));flagOutliers(items);flagSizes(items);const all=makeBuilds(items).concat(items);attachSides(all);return all}
 /* ---------- math ---------- */
 const padOf=it=>it.np?0:S.settings.pad;
 const val=(e,k)=>(e.b[k]||0)*e.q*(1+(e.pad||0)/100);
