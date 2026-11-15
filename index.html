@@ -116,6 +116,10 @@ input[type=search]{background:var(--fill) url("data:image/svg+xml,%3Csvg xmlns='
 .filters select{flex:1;min-width:150px}
 .chip{background:var(--fill);border-radius:99px;padding:7px 14px;font-size:15px;font-weight:500;white-space:nowrap;transition:background .15s}
 .chip.on{background:var(--accent);color:var(--accent-ink)}
+.chip small{opacity:.6;font-size:12px;margin-left:2px}
+.chips.wrapc{flex-wrap:wrap;overflow:visible}
+.incl{font-size:12px;font-weight:500;color:var(--mute);text-transform:none;letter-spacing:0}
+.sub.inc{color:var(--tint)}
 .chips{display:flex;gap:8px;overflow-x:auto;padding:2px 0 6px;scrollbar-width:none;margin-bottom:16px}
 .chips::-webkit-scrollbar{display:none}
 .note{color:var(--mute);font-size:13px;margin:6px 16px 14px}
@@ -302,13 +306,33 @@ function sizeRank(z){z=(z||'').toLowerCase();let m=z.match(/(\d+(?:\.\d+)?)\s*oz
 function flagSizes(items){const g={};items.filter(i=>i.z).forEach(i=>(g[i.loc+'|'+i.bn] ||= []).push(i));
   Object.values(g).forEach(arr=>{const r=arr.map(i=>[sizeRank(i.z),i]).filter(x=>x[0]!=null).sort((a,b)=>a[0]-b[0]);
     for(let k=1;k<r.length;k++)if(r[k][0]>r[k-1][0]&&r[k][1].b.cal<r[k-1][1].b.cal){arr.forEach(i=>i.low=true);break}})}
-function postProcess(items){items.forEach(i=>i.role=roleOf(i));flagOutliers(items);flagSizes(items);return makeBuilds(items).concat(items)}
+// Sides that come with a dish in Mobile Order (verified in Duke Dine-Out)
+const SK='The Skillet',BSIDE=/^(bacon|southern grits|plain grits|grits|cinnamon oatmeal|country ham|mixed fruit|vegetarian sausage patty|morning ?star.*sausage.*|pork sausage.*|sausage patty|tater tots|turkey sausage( link| patty)?|greek vanilla yogurt|vanilla greek yogurt|(seasoned )?potato wedges)$/i;
+const SIDE_RULES=[
+  {loc:SK,dish:/^(french toast|chicken and waffles)$/i,slots:[['Breakfast side',{name:BSIDE}]]},
+  {loc:SK,dish:/^two eggs to order|fast lane blue plate/i,slots:[['Breakfast side',{name:BSIDE}],['Second side',{name:BSIDE}],['Biscuit or toast',{name:/^(biscuit|wheat toast|sourdough toast|white toast)$/i,none:false}]]},
+  {loc:SK,dish:/omelet/i,cat:/omelet/i,slots:[['Breakfast side',{name:BSIDE}],['Biscuit or toast',{name:/^(biscuit|wheat toast|sourdough toast|white toast)$/i,none:false}]]},
+  {loc:SK,cat:/^pancakes$/i,slots:[['Eggs',{name:/^cooked eggs$/i,none:false}],['Meat',{name:/^(bacon|country ham|pork sausage.*|sausage patty|vegetarian sausage patty|turkey sausage( link| patty)?)$/i,none:false}]]},
+  {loc:"J.B.'s Roast & Chops",cat:/choose 1 side/i,slots:[['Side',{cat:/durham market sides/i}]]},
+];
+function sideScore(o){return (o.b.pro||0)*4-(o.b.cal||0)*.3}
+function attachSides(items){
+  SIDE_RULES.forEach(R=>items.filter(d=>d.loc===R.loc&&d.role==='dish'&&(!R.dish||R.dish.test(d.bn))&&(!R.cat||R.cat.test(d.cat))&&!d.inc).forEach(d=>{
+    const slots=R.slots.map(([label,f])=>{const seen=new Set(),opts=items.filter(o=>o!==d&&o.loc===d.loc&&!o.warn&&(f.name?f.name.test(o.bn):true)&&(f.cat?f.cat.test(o.cat)&&o.role!=='part':true)).filter(o=>{const k=o.bn.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return {label,opts,none:f.none!==false}}).filter(sl=>sl.opts.length);
+    if(!slots.length)return;d.inc=slots;d.base={...d.b};
+    const used=new Set();d.sel=slots.map(sl=>{let best=-1,bs=-1e9;sl.opts.forEach((o,i)=>{const sc=sideScore(o)-(used.has(o)?50:0);if(sc>bs){bs=sc;best=i}});if(best>=0)used.add(sl.opts[best]);return best});
+    applySides(d)}));
+}
+function applySides(d){const b={...d.base};d.inc.forEach((sl,i)=>{const o=sl.opts[d.sel[i]];if(o)KEYS.forEach(k=>b[k]=(b[k]||0)+(o.b[k]||0))});d.b=b}
+const sideNames=it=>it.inc?it.inc.map((sl,i)=>sl.opts[it.sel[i]]).filter(Boolean).map(o=>o.bn):[];
+const fullName=it=>it.inc&&sideNames(it).length?it.n+' + '+sideNames(it).join(' + '):it.n;
+function postProcess(items){items.forEach(i=>i.role=roleOf(i));flagOutliers(items);flagSizes(items);attachSides(items);return makeBuilds(items).concat(items)}
 /* ---------- math ---------- */
 const padOf=it=>it.np?0:S.settings.pad;
 const val=(e,k)=>(e.b[k]||0)*e.q*(1+(e.pad||0)/100);
 const padded=(it,k,q=1)=>(it.b[k]||0)*q*(1+padOf(it)/100);
 function totals(k=S.date){const t={};KEYS.forEach(n=>t[n]=0);(S.logs[k]||[]).forEach(e=>KEYS.forEach(n=>t[n]+=val(e,n)));return t}
-function logItem(it,q=1){(S.logs[S.date] ||= []).push({id:id(),n:it.n,loc:it.loc||'',q,pad:padOf(it),b:{...it.b}});saveLog()}
+function logItem(it,q=1){(S.logs[S.date] ||= []).push({id:id(),n:fullName(it),loc:it.loc||'',q,pad:padOf(it),b:{...it.b}});saveLog()}
 
 /* ---------- which meal a dish suits (best judgement from its name and section) ---------- */
 const M_BREAK=/breakfast|\begg|eggs\b|omelet|pancake|waffle|french toast|biscuit|grits|bagel|muffin|croissant|scone|oatmeal|yogurt|parfait|granola|yoats|acai|crepe|scrambler|quiche|frittata|cinnamon roll|sausage (patty|link)|bacon egg|farmhand|rise and shine|chia pudding|overnight|fast lane blue plate|blue plate/i;
@@ -344,7 +368,7 @@ function picks(){
 
 /* ---------- views ---------- */
 function macroLine(get){return `<div class="macros"><span><b class="c-pro">${r0(get('pro'))}g</b> protein</span><span><b class="c-carb">${r0(get('carb'))}g</b> carbs</span><span><b class="c-fat">${r0(get('fat'))}g</b> fat</span></div>`}
-function itemRow(it,extra='',inLoc=false,hidePill=false){return `<div class="row">${extra}<button class="info" data-act="open" data-id="${esc(it.id)}"><div class="name">${esc(it.n)} ${it.mo&&!hidePill?'<span class="pill mo">Mobile Order</span>':''}${it.role==='part'?' <span class="pill part">Add-on</span>':''}${it.build?' <span class="pill part">Typical build</span>':''}</div><div class="sub">${inLoc?esc(it.srv||''):esc(it.loc)+(it.cat?' · '+esc(it.cat):'')+(it.srv?' · '+esc(it.srv):'')}</div>${macroLine(k=>padded(it,k))}</button><div class="kcal">${r0(padded(it,'cal')).toLocaleString()}<small>cal</small></div><button class="add" data-act="quick" data-id="${esc(it.id)}" aria-label="Add ${esc(it.n)} to log">+</button></div>`}
+function itemRow(it,extra='',inLoc=false,hidePill=false){return `<div class="row">${extra}<button class="info" data-act="open" data-id="${esc(it.id)}"><div class="name">${esc(it.n)} ${it.mo&&!hidePill?'<span class="pill mo">Mobile Order</span>':''}${it.role==='part'?' <span class="pill part">Add-on</span>':''}${it.build?' <span class="pill part">Typical build</span>':''}</div><div class="sub">${inLoc?esc(it.srv||''):esc(it.loc)+(it.cat?' · '+esc(it.cat):'')+(it.srv?' · '+esc(it.srv):'')}</div>${it.inc?'<div class="sub inc">Comes with '+esc(sideNames(it).join(' + ')||'no side')+'</div>':''}${macroLine(k=>padded(it,k))}</button><div class="kcal">${r0(padded(it,'cal')).toLocaleString()}<small>cal</small></div><button class="add" data-act="quick" data-id="${esc(it.id)}" aria-label="Add ${esc(it.n)} to log">+</button></div>`}
 function menuNotice(){
   if(S.menuState==='loading')return '<div class="empty"><b>Loading the Duke Dining menu…</b></div>';
   if(S.menuState==='unreachable')return '<div class="empty"><b>The menu can\'t be reached right now</b>Check your connection and reopen the app. Your own foods and saved meals still work.</div>';
@@ -515,8 +539,9 @@ let cur=null,curQ=1;
 function itemSheet(){
   const it=cur;
   openSheet(`<div class="head"><div><h3>${esc(it.n)}</h3><div class="sub" style="color:var(--mute)">${esc(it.loc)}${it.srv?' · serving: '+esc(it.srv):''}</div></div><button class="ghost" data-act="close" aria-label="Close">✕</button></div>
+  ${it.inc?it.inc.map((sl,si)=>`<h2 style="margin-top:14px">${esc(sl.label)} <span class="incl">included</span></h2><div class="chips wrapc">${sl.opts.map((o,oi)=>`<button class="chip${it.sel[si]===oi?' on':''}" data-act="side" data-s="${si}" data-x="${oi}">${esc(o.bn)} <small>${r0(padded(o,'cal'))}</small></button>`).join('')}${sl.none?`<button class="chip${it.sel[si]===-1?' on':''}" data-act="side" data-s="${si}" data-x="-1">No side</button>`:''}</div>`).join(''):''}
   <table class="facts">${KEYS.map(k=>`<tr><td>${LABEL[k]}</td><td>${fmt(k,padded(it,k,curQ))}</td></tr>`).join('')}</table>
-  <p class="note">${padOf(it)?`Includes your +${padOf(it)}% portion buffer.`:'Exact values, no portion buffer.'}${it.z?' Numbers are for the '+esc(it.z)+' size; other sizes are listed separately.':''}${it.role==='part'?' This is a component or add-on: it is part of a larger order, not something you buy on its own.':''}${it.low?' <b style="color:var(--crit)">Duke\'s numbers for this item don\'t line up with its other versions (a different milk or size), so one of them is probably entered wrong. Treat them with caution.</b>':''}${it.build?'<br><b>Typical build, estimated from Duke\'s components:</b> '+esc(it.comps.join(' + '))+'. Your actual order may differ.':''}${it.warn?' <b style="color:var(--crit)">Duke\'s numbers for this item look unusually high. Double-check before logging.</b>':''}</p>
+  <p class="note">${padOf(it)?`Includes your +${padOf(it)}% portion buffer.`:'Exact values, no portion buffer.'}${it.z?' Numbers are for the '+esc(it.z)+' size; other sizes are listed separately.':''}${it.role==='part'?' This is a component or add-on: it is part of a larger order, not something you buy on its own.':''}${it.low?' <b style="color:var(--crit)">Duke\'s numbers for this item don\'t line up with its other versions (a different milk or size), so one of them is probably entered wrong. Treat them with caution.</b>':''}${it.inc?' Totals include the dish plus the sides picked above, which come with it in Mobile Order.':''}${it.build?'<br><b>Typical build, estimated from Duke\'s components:</b> '+esc(it.comps.join(' + '))+'. Your actual order may differ.':''}${it.warn?' <b style="color:var(--crit)">Duke\'s numbers for this item look unusually high. Double-check before logging.</b>':''}</p>
   <div class="head" style="align-items:center;margin:10px 0"><b>Servings</b><div class="stepper"><button data-act="sq" data-d="-0.5" aria-label="Less">−</button><b>${r1(curQ)}×</b><button data-act="sq" data-d="0.5" aria-label="More">+</button></div></div>
   <button class="btn" data-act="logcur">Add to ${dlabel(S.date).toLowerCase()}</button>
   ${S.favs.length?`<h2>Add to a saved meal</h2><div class="chips">${S.favs.map(m=>`<button class="chip" data-act="tomeal" data-id="${m.id}">${esc(m.name)}</button>`).join('')}</div>`:'<p class="note">Create a meal under My meals to add this dish to it.</p>'}
@@ -539,11 +564,12 @@ document.addEventListener('click',async ev=>{
   if(ev.target.id==='sheet'){closeSheet();return}
   const el=ev.target.closest('[data-act]');if(!el)return;const a=el.dataset.act,did=el.dataset.id,d=+el.dataset.d;
   if(a==='day'){const n=dparse(S.date);n.setDate(n.getDate()+d);if(n>new Date())return;S.date=dkey(n);if(!S.logs[S.date]){const v=lsGet('log-'+S.date)||{};S.logs[S.date]=v.entries||[];S.water[S.date]=v.water||[];render();await loadDay(S.date)}render()}
-  else if(a==='open'){cur=find(did);curQ=1;if(cur)itemSheet()}
+  else if(a==='open'){cur=find(did);curQ=1;if(cur){if(cur.inc)cur={...cur,sel:[...cur.sel]};itemSheet()}}
+  else if(a==='side'){const sl=+el.dataset.s;cur.sel[sl]=+el.dataset.x;applySides(cur);itemSheet()}
   else if(a==='quick'){const it=find(did);if(it){logAny(it);toast('Added '+it.n);if(S.view==='picks')render()}}
   else if(a==='sq'){curQ=Math.max(.5,curQ+d);itemSheet()}
-  else if(a==='logcur'){logAny(cur,curQ);closeSheet();toast('Added '+cur.n);render()}
-  else if(a==='tomeal'){const m=S.favs.find(m=>m.id===did);m.items.push({n:cur.n,loc:cur.loc,q:curQ,np:cur.np||false,b:{...cur.b}});saveFavs();closeSheet();toast('Added to '+m.name)}
+  else if(a==='logcur'){logAny(cur,curQ);closeSheet();toast('Added '+fullName(cur));render()}
+  else if(a==='tomeal'){const m=S.favs.find(m=>m.id===did);m.items.push({n:fullName(cur),loc:cur.loc,q:curQ,np:cur.np||false,b:{...cur.b}});saveFavs();closeSheet();toast('Added to '+m.name)}
   else if(a==='close')closeSheet();
   else if(a==='qty'){const L=S.logs[S.date],e=L.find(e=>e.id===did);e.q+=d;if(e.q<=0)L.splice(L.indexOf(e),1);saveLog();render()}
   else if(a==='mqty'){const m=S.favs.find(m=>m.id===did),i=m.items[+el.dataset.x];i.q+=d;if(i.q<=0)m.items.splice(+el.dataset.x,1);saveFavs();render()}
