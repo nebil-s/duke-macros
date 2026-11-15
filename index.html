@@ -155,6 +155,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .catchips{position:sticky;top:calc(-8px - env(safe-area-inset-top));z-index:2;background:var(--bg);padding:8px 0;margin:0 -16px 10px;padding-left:16px;padding-right:16px}
 .cathead{scroll-margin-top:60px}
 .rank{font:600 15px var(--round);color:var(--faint);width:18px;flex:none;text-align:center}
+.rank.big{width:auto;min-width:30px;color:var(--accent);font-size:14px}
 .why{color:var(--pro);font-size:13px;font-weight:500;margin-top:2px}
 .toast{position:fixed;left:50%;top:calc(10px + env(safe-area-inset-top));transform:translate(-50%,-20px);opacity:0;background:var(--card);color:var(--ink);padding:10px 18px;border-radius:99px;font-size:15px;font-weight:600;z-index:9;max-width:90%;text-align:center;box-shadow:0 8px 30px rgba(0,0,0,.18);transition:transform .3s cubic-bezier(.2,.9,.25,1),opacity .3s}
 .toast.show{transform:translate(-50%,0);opacity:1}
@@ -412,22 +413,39 @@ const RANKS={
   lowcarb:{l:'Lowest carbs (full meals)',note:'Fewest carbs first among full meals.',full:true},
   lowfat:{l:'Lowest fat (full meals)',note:'Least fat first among full meals.',full:true},
 };
-function picks(){
-  const t=totals(),L=S.settings.lim,rem={cal:L.cal-t.cal,fat:L.fat-t.fat,carb:L.carb-t.carb,pro:Math.max(0,L.pro-t.pro)},mode=RANKS[S.settings.rank]?S.settings.rank:'fit',R=RANKS[mode];
-  const snack=S.pickMeal==='snack',minCal=R.full?(snack?60:300):(snack?60:150);
+function scoreIt(it,mode,rem){const c=padded(it,'cal')||1,p=padded(it,'pro'),f=padded(it,'fat'),cb=padded(it,'carb'),cs=c/Math.max(1,rem.cal);let sc,why;
+  if(mode==='fit'){sc=(p*4/c)*(rem.pro>0?1:.3);if(rem.fat>0)sc-=.5*Math.max(0,f/rem.fat-cs);if(rem.carb>0)sc-=.5*Math.max(0,cb/rem.carb-cs);why=r0(p)+'g protein for '+r0(cs*100)+'% of your remaining calories'}
+  else if(mode==='lean'){sc=p/c;why=r1(p/c*100)+'g protein per 100 calories'}
+  else if(mode==='lowcal'){sc=-c;why=r0(c)+' calories · '+r0(p)+'g protein'}
+  else if(mode==='highpro'){sc=p-c/1e4;why=r0(p)+'g protein · '+r0(c)+' calories'}
+  else if(mode==='lowcarb'){sc=-cb+p/1e3;why=r0(cb)+'g carbs · '+r0(p)+'g protein'}
+  else{sc=-f+p/1e3;why=r0(f)+'g fat · '+r0(p)+'g protein'}
+  return {it,s:sc,why}}
+function pickBase(){const t=totals(),L=S.settings.lim,rem={cal:L.cal-t.cal,fat:L.fat-t.fat,carb:L.carb-t.carb,pro:Math.max(0,L.pro-t.pro)},mode=RANKS[S.settings.rank]?S.settings.rank:'fit';
   const favs=S.favs.filter(m=>m.items.length).map(m=>{const b={};KEYS.forEach(k=>b[k]=mealTot(m,k));return {id:'fav:'+m.id,fav:m.id,n:m.name,loc:'My meals',np:true,cat:'Saved meal',srv:m.items.length+' items',b,role:'dish'}});
-  let pool=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||'')&&padded(it,'cal')>=minCal&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav)&&(!S.pickMeal||(S.pickMeal==='main'?mealsOf(it).some(m=>m==='lunch'||m==='dinner'):mealsOf(it).includes(S.pickMeal))));
-  const fit=pool.filter(it=>padded(it,'cal')<=rem.cal&&padded(it,'fat')<=rem.fat&&padded(it,'carb')<=rem.carb);
+  const dishes=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||''));
+  const fits=it=>padded(it,'cal')<=rem.cal&&padded(it,'fat')<=rem.fat&&padded(it,'carb')<=rem.carb;
+  return {rem,mode,dishes,fits}}
+function picks(){
+  const {rem,mode,dishes,fits}=pickBase(),R=RANKS[mode],snack=S.pickMeal==='snack',minCal=R.full?(snack?60:300):(snack?60:150);
+  const pool=dishes.filter(it=>padded(it,'cal')>=minCal&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav)&&(!S.pickMeal||(S.pickMeal==='main'?mealsOf(it).some(m=>m==='lunch'||m==='dinner'):mealsOf(it).includes(S.pickMeal))));
+  const fit=pool.filter(fits);
   if(!fit.length)return {rem,mode,over:true,list:pool.sort((a,b)=>a.b.cal-b.b.cal).slice(0,15).map(it=>({it,why:'Lightest option available'}))};
-  const scored=fit.map(it=>{const c=padded(it,'cal'),p=padded(it,'pro'),f=padded(it,'fat'),cb=padded(it,'carb'),cs=c/rem.cal;let sc,why;
-    if(mode==='fit'){sc=(p*4/c)*(rem.pro>0?1:.3);if(rem.fat>0)sc-=.5*Math.max(0,f/rem.fat-cs);if(rem.carb>0)sc-=.5*Math.max(0,cb/rem.carb-cs);why=r0(p)+'g protein for '+r0(cs*100)+'% of your remaining calories'}
-    else if(mode==='lean'){sc=p/c;why=r1(p/c*100)+'g protein per 100 calories'}
-    else if(mode==='lowcal'){sc=-c;why=r0(c)+' calories · '+r0(p)+'g protein'}
-    else if(mode==='highpro'){sc=p-c/1e4;why=r0(p)+'g protein · '+r0(c)+' calories'}
-    else if(mode==='lowcarb'){sc=-cb+p/1e3;why=r0(cb)+'g carbs · '+r0(p)+'g protein'}
-    else{sc=-f+p/1e3;why=r0(f)+'g fat · '+r0(p)+'g protein'}
-    return {it,s:sc,why}});
-  return {rem,mode,over:false,list:scored.sort((a,b)=>b.s-a.s).slice(0,15)};
+  return {rem,mode,over:false,list:fit.map(it=>scoreIt(it,mode,rem)).sort((a,b)=>b.s-a.s).slice(0,15)};
+}
+// Search: rank matching dishes against every orderable dish at Duke, ignoring the meal/location filters
+function pickSearch(q){
+  const {rem,mode,dishes,fits}=pickBase(),all=dishes.map(it=>scoreIt(it,mode,rem)).sort((a,b)=>b.s-a.s);
+  const words=q.toLowerCase().split(/\s+/).filter(Boolean),hit=x=>{const h=(x.it.n+' '+x.it.loc+' '+(x.it.cat||'')+' '+sideNames(x.it).join(' ')).toLowerCase();return words.every(w=>h.includes(w))};
+  return {total:all.length,list:all.map((x,i)=>({...x,rank:i+1,fit:fits(x.it)})).filter(hit).slice(0,40)};
+}
+function pickResults(){
+  const q=(S.pickQ||'').trim();
+  if(q){const r=pickSearch(q);if(!r.list.length)return `<div class="empty"><b>No dishes match “${esc(q)}”</b>Sides, sauces and add-ons aren't ranked. Try a dish name or location.</div>`;
+    return `<p class="note">Ranked against all ${r.total} orderable dishes at Duke by ${esc(RANKS[S.settings.rank]?RANKS[S.settings.rank].l.toLowerCase():RANKS.fit.l.toLowerCase())}, ignoring the meal and location filters. #1 is the best.</p><div class="card">${r.list.map(x=>itemRow(x.it,`<span class="rank big">#${x.rank}</span>`).replace('<div class="macros">',`<div class="why">${esc(x.why)} · top ${Math.max(1,Math.round(x.rank/r.total*100))}%${x.fit?'':' <span class="pill over">Over what\'s left</span>'}</div><div class="macros">`)).join('')}</div>`}
+  const p=picks();
+  return `<p class="note">${p.over?'Nothing fits inside what you have left for '+dlabel(S.date).toLowerCase()+'. These are the lightest options.':RANKS[p.mode].note+' Only orderable dishes that fit what you have left are shown.'}</p>
+  ${p.list.length?`<div class="card">${p.list.map((x,i)=>itemRow(x.it,`<span class="rank">${i+1}</span>`).replace('<div class="macros">',`<div class="why">${esc(x.why)}</div><div class="macros">`)).join('')}</div>`:`<div class="empty"><b>No ${S.pickMeal?(MEALS.find(m=>m[0]===S.pickMeal)||['',''])[1].toLowerCase()+' ':''}dishes here</b>Try another meal or location.</div>`}`;
 }
 
 /* ---------- views ---------- */
@@ -507,13 +525,13 @@ function results(list){if(!list.length)return S.menuState==='ok'||S.custom.lengt
   return `<div class="card">${list.slice(0,S.shown).map(i=>itemRow(i)).join('')}</div>${list.length>S.shown?`<button class="btn alt" data-act="more">Show more (${list.length-S.shown} left)</button>`:''}`}
 function vPicks(){
   const all=allItems();if(!all.length)return menuNotice()||'<div class="empty"><b>No foods to rank yet</b></div>';
-  const p=picks(),locs=[...new Set(all.map(i=>i.loc))].sort();
+  const p={rem:pickBase().rem,mode:RANKS[S.settings.rank]?S.settings.rank:'fit'},locs=[...new Set(all.map(i=>i.loc))].sort();
   return `<div class="card p"><div class="others"><div class="${p.rem.cal<0?'x':''}"><b>${r0(p.rem.cal).toLocaleString()}</b><small>calories left</small></div><div><b>${r0(p.rem.pro)}g</b><small>protein to go</small></div><div class="${p.rem.fat<0?'x':''}"><b>${r0(p.rem.fat)}g</b><small>fat left</small></div></div></div>
   <div class="seg" role="tablist" aria-label="Meal">${MEALS.map(([k,l])=>`<button role="tab" aria-selected="${S.pickMeal===k}" class="${S.pickMeal===k?'on':''}" data-act="pickmeal" data-m="${k}">${l}</button>`).join('')}</div>
   <label class="rankby" for="pickrank"><span>Rank by</span><select id="pickrank">${Object.entries(RANKS).map(([k,r])=>`<option value="${k}" ${k===p.mode?'selected':''}>${esc(r.l)}</option>`).join('')}</select></label>
   <div class="filters"><select id="pickloc" aria-label="Dining location"><option value="">All locations</option>${locs.map(l=>`<option ${l===S.pickLoc?'selected':''}>${esc(l)}</option>`).join('')}</select>${all.some(i=>i.mo)?`<button class="chip ${S.pickMo?'on':''}" data-act="pickmo">Mobile Order only</button>`:''}</div>
-  <p class="note">${p.over?'Nothing fits inside what you have left for '+dlabel(S.date).toLowerCase()+'. These are the lightest options.':RANKS[p.mode].note+' Only orderable dishes that fit what you have left are shown.'}</p>
-  ${p.list.length?`<div class="card">${p.list.map((x,i)=>itemRow(x.it,`<span class="rank">${i+1}</span>`).replace('<div class="macros">',`<div class="why">${esc(x.why)}</div><div class="macros">`)).join('')}</div>`:`<div class="empty"><b>No ${S.pickMeal?(MEALS.find(m=>m[0]===S.pickMeal)||['',''])[1].toLowerCase()+' ':''}dishes here</b>Try another meal or location.</div>`}`;
+  <input type="search" id="pickq" placeholder="Search a dish to see where it ranks" value="${esc(S.pickQ||'')}" autocomplete="off" style="margin:4px 0 2px">
+  <div id="pickres">${pickResults()}</div>`;
 }
 function mealTot(m,k){return m.items.reduce((s,i)=>s+padded(i,k,i.q),0)}
 function vMeals(){
@@ -666,6 +684,7 @@ document.addEventListener('click',async ev=>{
 });
 document.addEventListener('input',ev=>{const t=ev.target;
   if(t.id==='q'){S.q=t.value;S.shown=40;$('#results').innerHTML=menuBody()}
+  else if(t.id==='pickq'){S.pickQ=t.value;$('#pickres').innerHTML=pickResults()}
   else if(t.id==='pad'){$('#padv').textContent='+'+t.value+'%'}
 });
 document.addEventListener('change',ev=>{const t=ev.target;
