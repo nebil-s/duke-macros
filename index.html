@@ -387,12 +387,12 @@ function mealsOf(it){
   if(it.build&&!m.size){m.add('lunch');m.add('dinner')}
   return [...m];
 }
-const MEALS=[['','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['snack','Snack']];
-function mealNow(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?'breakfast':h<14.5?'lunch':h<17?'snack':h<21.5?'dinner':'snack'}
+const MEALS=[['','All'],['breakfast','Breakfast'],['main','Lunch & Dinner'],['snack','Snack']];
+function mealNow(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?'breakfast':h<14.5?'main':h<17?'snack':h<21.5?'main':'snack'}
 function picks(){
   const t=totals(),L=S.settings.lim,rem={cal:L.cal-t.cal,fat:L.fat-t.fat,carb:L.carb-t.carb,pro:Math.max(0,L.pro-t.pro)};
   const favs=S.favs.filter(m=>m.items.length).map(m=>{const b={};KEYS.forEach(k=>b[k]=mealTot(m,k));return {id:'fav:'+m.id,fav:m.id,n:m.name,loc:'My meals',np:true,cat:'Saved meal',srv:m.items.length+' items',b,role:'dish'}});
-  let pool=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||'')&&padded(it,'cal')>=(S.pickMeal==='snack'?60:150)&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav)&&(!S.pickMeal||mealsOf(it).includes(S.pickMeal)));
+  let pool=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||'')&&padded(it,'cal')>=(S.pickMeal==='snack'?60:150)&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav)&&(!S.pickMeal||(S.pickMeal==='main'?mealsOf(it).some(m=>m==='lunch'||m==='dinner'):mealsOf(it).includes(S.pickMeal))));
   const fit=pool.filter(it=>padded(it,'cal')<=rem.cal&&padded(it,'fat')<=rem.fat&&padded(it,'carb')<=rem.carb);
   if(!fit.length)return {rem,over:true,list:pool.sort((a,b)=>a.b.cal-b.b.cal).slice(0,15).map(it=>({it,why:'Lightest option available'}))};
   const scored=fit.map(it=>{const c=padded(it,'cal'),p=padded(it,'pro'),f=padded(it,'fat'),cb=padded(it,'carb'),cs=c/rem.cal;
