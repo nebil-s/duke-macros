@@ -189,7 +189,7 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .wbtn:disabled{opacity:.35}
 .day.wok::after{content:"";position:absolute;bottom:-3px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--cal)}
 .seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 0 10px}
-.seg button{flex:1;padding:6px 0;border-radius:7px;font-size:13px;font-weight:500;transition:background .2s}
+.seg button{flex:1;white-space:nowrap;padding:6px 0;border-radius:7px;font-size:13px;font-weight:500;transition:background .2s}
 .seg button.on{background:var(--card);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
 :root[data-theme="dark"] .seg button.on{background:#636366}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button.on{background:#636366}}
@@ -387,7 +387,7 @@ function mealsOf(it){
   if(it.build&&!m.size){m.add('lunch');m.add('dinner')}
   return [...m];
 }
-const MEALS=[['','All'],['breakfast','Breakfast'],['main','Lunch & Dinner'],['snack','Snack']];
+const MEALS=[['','All'],['breakfast','Breakfast'],['main','Lunch/Dinner'],['snack','Snack']];
 function mealNow(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?'breakfast':h<14.5?'main':h<17?'snack':h<21.5?'main':'snack'}
 function picks(){
   const t=totals(),L=S.settings.lim,rem={cal:L.cal-t.cal,fat:L.fat-t.fat,carb:L.carb-t.carb,pro:Math.max(0,L.pro-t.pro)};
