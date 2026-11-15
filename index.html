@@ -344,18 +344,26 @@ function flagSizes(items){const g={};items.filter(i=>i.z).forEach(i=>(g[i.loc+'|
   Object.values(g).forEach(arr=>{const r=arr.map(i=>[sizeRank(i.z),i]).filter(x=>x[0]!=null).sort((a,b)=>a[0]-b[0]);
     for(let k=1;k<r.length;k++)if(r[k][0]>r[k-1][0]&&r[k][1].b.cal<r[k-1][1].b.cal){arr.forEach(i=>i.low=true);break}})}
 // Sides that come with a dish in Mobile Order (verified in Duke Dine-Out)
-const SK='The Skillet',BSIDE=/^(bacon|southern grits|plain grits|grits|cinnamon oatmeal|country ham|mixed fruit|vegetarian sausage patty|morning ?star.*sausage.*|pork sausage.*|sausage patty|tater tots|turkey sausage( link| patty)?|greek vanilla yogurt|vanilla greek yogurt|(seasoned )?potato wedges)$/i;
+const SK='The Skillet',JB="J.B.'s Roast & Chops",NOT_ROLL=/^(?!dinner roll$).*/i,LSIDE=/^(cole slaw|country green beans|griddled squash.*|mashed potatoes( and| with)? gravy|mashed potatoes|seasoned diced potato(es)?|mac and cheese|cheesy hashbrown casserole|fried okra|pinto beans|potato salad|succotash|watermelon salad|fruit salad|bacon collard greens|whole (red delicious )?(apple|banana|orange))$/i,BSIDE=/^(bacon|southern grits|plain grits|grits|cinnamon oatmeal|country ham|mixed fruit|vegetarian sausage patty|morning ?star.*sausage.*|pork sausage.*|sausage patty|tater tots|turkey sausage( link| patty)?|greek vanilla yogurt|vanilla greek yogurt|(seasoned )?potato wedges)$/i;
 const SIDE_RULES=[
   {loc:SK,dish:/^(french toast|chicken and waffles)$/i,slots:[['Breakfast side',{name:BSIDE}]]},
   {loc:SK,dish:/^two eggs to order|fast lane blue plate/i,slots:[['Breakfast side',{name:BSIDE}],['Second side',{name:BSIDE}],['Biscuit or toast',{name:/^(biscuit|wheat toast|sourdough toast|white toast)$/i,none:false}]]},
   {loc:SK,dish:/omelet/i,cat:/omelet/i,slots:[['Breakfast side',{name:BSIDE}],['Biscuit or toast',{name:/^(biscuit|wheat toast|sourdough toast|white toast)$/i,none:false}]]},
   {loc:SK,cat:/^pancakes$/i,slots:[['Eggs',{name:/^cooked eggs$/i,none:false}],['Meat',{name:/^(bacon|country ham|pork sausage.*|sausage patty|vegetarian sausage patty|turkey sausage( link| patty)?)$/i,none:false}]]},
-  {loc:"J.B.'s Roast & Chops",cat:/choose 1 side/i,slots:[['Side',{cat:/durham market sides/i}]]},
+  {loc:SK,dish:/po ?boy|\bblt\b|sandwich/i,slots:[['Lunch side',{name:LSIDE}]]},
+  {loc:SK,dish:/^sauteed catfish combo$/i,slots:[['Diced potatoes',{name:/^seasoned diced potato(es)?$/i,none:false}],['Collard greens',{name:/^bacon collard greens$/i,none:false}],['Hushpuppies',{name:/hush ?pupp/i,none:false}]]},
+  {loc:SK,dish:/tenders|nc style bbq|meatloaf|catfish platter|^smoked beef brisket$|pulled pork and/i,slots:[['Lunch side',{name:LSIDE}],['Second side',{name:LSIDE}],['Biscuit or hushpuppies',{name:/^(biscuit( plain)?|hush ?puppies)$/i,none:false}]]},
+  {loc:SK,dish:/^3 sides platter$/i,slots:[['Side 1',{name:LSIDE,none:false}],['Side 2',{name:LSIDE,none:false}],['Side 3',{name:LSIDE,none:false}]]},
+  {loc:JB,cat:/choose 1 side/i,slots:[['Side',{cat:/durham market sides/i,name:NOT_ROLL}]]},
+  {loc:JB,dish:/paella/i,slots:[['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
+  {loc:JB,cat:/chop house|carved to order|seafood on the grill/i,slots:[['Entrée side',{cat:/durham market sides/i,name:NOT_ROLL}],['Second side',{cat:/durham market sides/i,name:NOT_ROLL}],['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
+  {loc:'The Farmstead',cat:/^entree$|carving station/i,from:['The Farmstead','Sprout'],slots:[['Meal side',{cat:/^sides$/i}],['Second side',{cat:/^sides$/i}]]},
+  {loc:'The Farmstead',dish:/gyro|wrap|shawarma|sandwich|slider|avocado|burger/i,slots:[['Whole fruit',{name:/^(whole )?(red delicious )?(apple|banana|orange)$/i}]]},
 ];
 function sideScore(o){return (o.b.pro||0)*4-(o.b.cal||0)*.3}
 function attachSides(items){
   SIDE_RULES.forEach(R=>items.filter(d=>d.loc===R.loc&&d.role==='dish'&&(!R.dish||R.dish.test(d.bn))&&(!R.cat||R.cat.test(d.cat))&&!d.inc).forEach(d=>{
-    const slots=R.slots.map(([label,f])=>{const seen=new Set(),opts=items.filter(o=>o!==d&&o.loc===d.loc&&!o.warn&&(f.name?f.name.test(o.bn):true)&&(f.cat?f.cat.test(o.cat)&&o.role!=='part':true)).filter(o=>{const k=o.bn.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return {label,opts,none:f.none!==false}}).filter(sl=>sl.opts.length);
+    const slots=R.slots.map(([label,f])=>{const seen=new Set(),opts=items.filter(o=>o!==d&&(R.from?R.from.includes(o.loc):o.loc===d.loc)&&!o.warn&&(f.name?f.name.test(o.bn):true)&&(f.cat?f.cat.test(o.cat)&&o.role!=='part':true)).filter(o=>{const k=o.bn.toLowerCase();if(seen.has(k))return false;seen.add(k);return true});return {label,opts,none:f.none!==false}}).filter(sl=>sl.opts.length);
     if(!slots.length)return;d.inc=slots;d.base={...d.b};
     const used=new Set();d.sel=slots.map(sl=>{let best=-1,bs=-1e9;sl.opts.forEach((o,i)=>{const sc=sideScore(o)-(used.has(o)?50:0);if(sc>bs){bs=sc;best=i}});if(best>=0)used.add(sl.opts[best]);return best});
     applySides(d)}));
