@@ -284,7 +284,7 @@ async function loadMenu(){
       items.push({id:'m'+li+':'+i,n:it.n+(it.z?' ('+it.z+')':''),bn:it.n,z:it.z||'',loc:L.name,cat:it.cat||'',srv:it.srv||'',mo:!!it.mo,warn:!!it.warn,multi:!!it.multi,b})}));
     try{const er=await fetch('estimates.json',{cache:'no-cache'});if(er.ok){const ed=await er.json(),nz=x=>x.toLowerCase().replace(/&/g,'and').replace(/[^a-z0-9]+/g,' ').trim(),mo=d.mobileOrder||{};
       (ed.items||[]).forEach((e,i)=>{if(HIDDEN_LOCS.test(e.loc))return;const en=nz(e.n);if(items.some(r=>r.loc===e.loc&&(nz(r.bn)===en||(en.length>5&&nz(r.bn).includes(en)))))return;
-        const b={};KEYS.forEach(k=>b[k]=+(e.b||{})[k]||0);const ml=(mo[e.loc]&&mo[e.loc].items||[]).map(nz),isMo=ml.some(m=>m&&(m===en||en.includes(m)||m.includes(en)));
+        const b={};KEYS.forEach(k=>b[k]=+(e.b||{})[k]||0);const ml=(mo[e.loc]&&mo[e.loc].items||[]).map(nz),isMo=!!e.mo||ml.some(m=>m&&(m===en||en.includes(m)||m.includes(en)));
         items.push({id:'e'+i,n:e.n,bn:e.n,z:'',loc:e.loc,cat:e.cat||'',srv:'Estimate',mo:isMo,warn:false,multi:false,est:true,b})})}}catch(e){}
     S.menu=postProcess(items);S.menuUpdated=d.updated||null;S.moInfo=d.mobileOrder||{};S.moOnly=d.mobileOrderOnly||[];S.menuState=items.length?'ok':'empty';
   }catch(e){S.menuState='unreachable'}
@@ -363,6 +363,9 @@ const SIDE_RULES=[
   {loc:JB,cat:/choose 1 side/i,slots:[['Side',{cat:/durham market sides/i,name:NOT_ROLL}]]},
   {loc:JB,dish:/paella/i,slots:[['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
   {loc:JB,cat:/chop house|carved to order|seafood on the grill/i,slots:[['Entrée side',{cat:/durham market sides/i,name:NOT_ROLL}],['Second side',{cat:/durham market sides/i,name:NOT_ROLL}],['Bread roll',{name:/^(dinner|bread|yeast) roll$/i}]]},
+  {loc:"The Devil's Krafthouse",cat:/^(handhelds|burgers)$/i,slots:[['Side',{cat:/^sides$/i,name:/fries|chips|fruit|salad/i}]]},
+  {loc:'Gothic Grill',cat:/^(burgers|sandwiches)$/i,slots:[['Side',{cat:/^sides$/i}]]},
+  {loc:"Pitchfork's",cat:/^sandwiches$/i,slots:[['Side',{cat:/^sides$/i,name:/fries|tots|fruit|salad/i}]]},
   {loc:'Il Forno',cat:/pasta station|typical builds/i,slots:[['Breadstick',{name:/^breadsticks?$/i}]]},
   {loc:'Cafe',cat:/hot sandwiches/i,slots:[['Chips',{name:/chips/i}]]},
   {loc:'Tandoor Indian Cuisine',dish:/combo$/i,test:d=>!d.veg,slots:[['Vegetable',{cat:/vegetarian dishes/i,def:-1,parts:true}],['Second protein',{cat:/durham market entr|lunch special/i,name:/^(?!.*biryani).*/i,def:-1,parts:true}]]},
@@ -493,7 +496,7 @@ function vToday(){
   <h2>Other nutrients</h2><div class="card p"><div class="others">${others}</div></div>
   ${S.settings.pad?`<p class="note">All numbers include your +${S.settings.pad}% portion buffer.</p>`:''}`;
 }
-const BLDG=[['Brodhead Center',['Il Forno','Ginger + Soy',"J.B.'s Roast & Chops",'The Farmstead','Sprout','Cafe','Sazon','The Skillet','Tandoor Indian Cuisine','Gyotaku']],['Bryan Center',["It's Thyme"]],['McClendon Tower',['Bella Union']],['Perkins Library',['Saladalia @ The Perk']],['East Campus Union',['Trinity Cafe']],['Wilson Recreation Center',['Red Mango']]];
+const BLDG=[['Brodhead Center',['Il Forno','Ginger + Soy',"J.B.'s Roast & Chops",'The Farmstead','Sprout','Cafe','Sazon','The Skillet','Tandoor Indian Cuisine','Gyotaku',"The Devil's Krafthouse",'Sub Central']],['Bryan Center',["It's Thyme","McDonald's",'Beyu Blue','Gothic Grill']],['McClendon Tower',["Pitchfork's",'Bella Union']],['Perkins Library',['Saladalia @ The Perk']],['Sanford School',['Saladelia Sanford']],['300 Swift',['Cafe 300']],['East Campus Union',['Trinity Cafe']],['Wilson Recreation Center',['Red Mango']],['Food Trucks',['Yalla!']]];
 const matchQ=(i,q)=>!q||(i.n+' '+i.cat).toLowerCase().includes(q);
 function menuBody(){
   const all=allItems(),q=S.q.trim().toLowerCase();
