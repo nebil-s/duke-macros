@@ -184,6 +184,11 @@ input[type=range]{width:100%;accent-color:var(--accent);height:28px}
 .wbtn.undo{flex:0 0 40px;background:var(--fill);color:var(--mute);font-size:17px}
 .wbtn:disabled{opacity:.35}
 .day.wok::after{content:"";position:absolute;bottom:-3px;left:50%;width:5px;height:5px;margin-left:-2.5px;border-radius:50%;background:var(--cal)}
+.seg{display:flex;background:var(--fill);border-radius:9px;padding:2px;margin:0 0 10px}
+.seg button{flex:1;padding:6px 0;border-radius:7px;font-size:13px;font-weight:500;transition:background .2s}
+.seg button.on{background:var(--card);font-weight:600;box-shadow:0 1px 3px rgba(0,0,0,.12),0 0 0 .5px rgba(0,0,0,.04)}
+:root[data-theme="dark"] .seg button.on{background:#636366}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .seg button.on{background:#636366}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
 @media (max-width:370px){.rings{width:144px;height:144px}.rings .big{font-size:20px}.hero{gap:12px;padding:14px}}
 </style>
@@ -242,10 +247,10 @@ const allItems=()=>S.custom.map(c=>({...c,loc:'My foods',mine:true})).concat(S.m
 
 /* ---------- what can actually be ordered ---------- */
 const DISH_CAT=/sandwiches \(choose 1 side\)|choose sides/i;
-const PART_CAT=/add ons?\b|topping|sauce|dressing|choose|build|make your own|\bbase\b|ramen \(|fillings|LL |leaf and ladle|omelet fusion (protein|cheese)|1892 grille toppings|fusion mediterranean (bowl|sauces)|waffle station|cucina yogurt toppings|signature sauces|salad add ons|sashimi & nigiri|lunch special|durham market entr.es|vegetarian dishes/i;
+const PART_CAT=/add ons?\b|topping|sauce|dressing|choose|build|make your own|\bbase\b|ramen \(|fillings|^LL |leaf and ladle|omelet fusion (protein|cheese)|1892 grille toppings|fusion mediterranean (bowl|sauces)|waffle station|cucina yogurt toppings|signature sauces|salad add ons|sashimi & nigiri|lunch special|durham market entr.es|vegetarian dishes/i;
 const SIDE_CAT=/\bsides?\b|breakfast breads|oatmeal and yogurt|soups/i;
 const PART_NAME=/^(gravy brown|maple syrup|barbecue sauce|confectioners sugar|chocolate sauce|whipped topping|whipped cream|reduced sugar grape jelly|vegetable cream cheese|whipped cream cheese|smart balance spread|wasabi|cheese sauce|captain wafer crackers|chocolate chips|dried cranberries|sausage gravy|banana)$/i;
-const COFFEE=/espresso|latte|cappuccino|frappe|specialty drinks|^beverages$|drink add ons/i;
+const COFFEE=/espresso|latte|cappuccino|frappe|specialty drinks|^beverages$|drink add ons|coffee and tea/i;
 function roleOf(it){
   if(it.loc==='Tandoor Indian Cuisine'&&/entr|vegetarian|lunch special/i.test(it.cat))return 'part';
   if(DISH_CAT.test(it.cat))return /choose sides/i.test(it.cat)?'side':'dish';
@@ -304,10 +309,31 @@ const val=(e,k)=>(e.b[k]||0)*e.q*(1+(e.pad||0)/100);
 const padded=(it,k,q=1)=>(it.b[k]||0)*q*(1+padOf(it)/100);
 function totals(k=S.date){const t={};KEYS.forEach(n=>t[n]=0);(S.logs[k]||[]).forEach(e=>KEYS.forEach(n=>t[n]+=val(e,n)));return t}
 function logItem(it,q=1){(S.logs[S.date] ||= []).push({id:id(),n:it.n,loc:it.loc||'',q,pad:padOf(it),b:{...it.b}});saveLog()}
+
+/* ---------- which meal a dish suits (best judgement from its name and section) ---------- */
+const M_BREAK=/breakfast|\begg|eggs\b|omelet|pancake|waffle|french toast|biscuit|grits|bagel|muffin|croissant|scone|oatmeal|yogurt|parfait|granola|yoats|acai|crepe|scrambler|quiche|frittata|cinnamon roll|sausage (patty|link)|bacon egg|farmhand|rise and shine|chia pudding|overnight|fast lane blue plate|blue plate/i;
+const M_SNACK=/smoothie|lassi|bubble tea|juice|horchata|lemonade|milk$|cookie|brownie|\bcake\b|cheesecake|torte|tiramisu|cupcake|donut|churro|gelato|sorbetto|soft serve|cobbler|pudding|gulab|beignet|macaroon|loaf|dessert|power bites|snackable|cottage cheese|edamame|samosa|dumpling|spring roll|shumai|pork bun|chips|fruit|banana|apple|orange|protein boost|miso soup|seaweed salad|bar$/i;
+const M_SNACK_CAT=/grab and go|smoothies|small bites|baker'?s table|dessert|extras|drinks|beverage|bakery|choose sides|soups, sides/i;
+const M_DINNER=/prime rib|ribeye|london broil|pork chop|sirloin|filet|fillet|mahi|yellow ?fin|roasted chicken|paella|carved|carving|chop house|a la carte|meatloaf|platter|combo$|biryani|tikka|curry|vindaloo|korma|malabar|masala|makhani|kebab|steakburger|pasta|alfredo|parma rosa|pesto pasta|burrata/i;
+const M_LUNCH=/sandwich|wrap|panini|pita|salad|slider|po boy|\bblt\b|burger|gyro|shawarma|fold|flatbread|melt|quesadilla|taco|burrito|focazza|club|pb ?&? ?j|grilled cheese|philly|sushi|roll$|tower|poke|pizza|slice|dosa/i;
+function mealsOf(it){
+  if(it.fav)return ['breakfast','lunch','dinner','snack'];
+  const t=it.n+' '+(it.cat||''),m=new Set();
+  const notSnack=/salad|roll and|combo|meal|sandwich|wrap|bowl/i.test(it.n);
+  const isB=(M_BREAK.test(t)&&!/chicken salad|club|sandwich|panini/i.test(it.n))||/breakfast|pancakes|waffle station|egg bites|oatmeal/i.test(it.cat||'');
+  const isS=!notSnack&&(M_SNACK.test(it.n)||M_SNACK_CAT.test(it.cat||''));
+  if(isB)m.add('breakfast');
+  if(isS){m.add('snack');if(/smoothie|parfait|yogurt|muffin|bagel|croissant|scone|loaf|banana|fruit|juice|cinnamon|yoats|chia/i.test(it.n))m.add('breakfast');if(/dumpling|bun|spring roll/i.test(it.n)){m.add('lunch');m.add('dinner')}}
+  if(!isB&&!isS){const d=M_DINNER.test(t),l=M_LUNCH.test(t);if(d)m.add('dinner');if(l)m.add('lunch');if(!d&&!l){m.add('lunch');m.add('dinner')}if(d&&/pizza|pasta|bowl|combo|curry|tikka|masala/i.test(t))m.add('lunch');if(l&&/bowl|sushi|roll$|tower|poke|pizza|quesadilla|burrito|taco|dosa|burger/i.test(t))m.add('dinner')}
+  if(it.build&&!m.size){m.add('lunch');m.add('dinner')}
+  return [...m];
+}
+const MEALS=[['','All'],['breakfast','Breakfast'],['lunch','Lunch'],['dinner','Dinner'],['snack','Snack']];
+function mealNow(){const h=new Date().getHours()+new Date().getMinutes()/60;return h<10.5?'breakfast':h<14.5?'lunch':h<17?'snack':h<21.5?'dinner':'snack'}
 function picks(){
   const t=totals(),L=S.settings.lim,rem={cal:L.cal-t.cal,fat:L.fat-t.fat,carb:L.carb-t.carb,pro:Math.max(0,L.pro-t.pro)};
   const favs=S.favs.filter(m=>m.items.length).map(m=>{const b={};KEYS.forEach(k=>b[k]=mealTot(m,k));return {id:'fav:'+m.id,fav:m.id,n:m.name,loc:'My meals',np:true,cat:'Saved meal',srv:m.items.length+' items',b,role:'dish'}});
-  let pool=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||'')&&padded(it,'cal')>=150&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav));
+  let pool=allItems().concat(favs).filter(it=>(it.role==='dish'||it.mine)&&!it.warn&&!it.low&&!COFFEE.test(it.cat||'')&&padded(it,'cal')>=(S.pickMeal==='snack'?60:150)&&(!S.pickLoc||it.loc===S.pickLoc)&&(!S.pickMo||it.mo||it.fav)&&(!S.pickMeal||mealsOf(it).includes(S.pickMeal)));
   const fit=pool.filter(it=>padded(it,'cal')<=rem.cal&&padded(it,'fat')<=rem.fat&&padded(it,'carb')<=rem.carb);
   if(!fit.length)return {rem,over:true,list:pool.sort((a,b)=>a.b.cal-b.b.cal).slice(0,15).map(it=>({it,why:'Lightest option available'}))};
   const scored=fit.map(it=>{const c=padded(it,'cal'),p=padded(it,'pro'),f=padded(it,'fat'),cb=padded(it,'carb'),cs=c/rem.cal;
@@ -395,9 +421,10 @@ function vPicks(){
   const all=allItems();if(!all.length)return menuNotice()||'<div class="empty"><b>No foods to rank yet</b></div>';
   const p=picks(),locs=[...new Set(all.map(i=>i.loc))].sort();
   return `<div class="card p"><div class="others"><div class="${p.rem.cal<0?'x':''}"><b>${r0(p.rem.cal).toLocaleString()}</b><small>calories left</small></div><div><b>${r0(p.rem.pro)}g</b><small>protein to go</small></div><div class="${p.rem.fat<0?'x':''}"><b>${r0(p.rem.fat)}g</b><small>fat left</small></div></div></div>
+  <div class="seg" role="tablist" aria-label="Meal">${MEALS.map(([k,l])=>`<button role="tab" aria-selected="${S.pickMeal===k}" class="${S.pickMeal===k?'on':''}" data-act="pickmeal" data-m="${k}">${l}</button>`).join('')}</div>
   <div class="filters"><select id="pickloc" aria-label="Dining location"><option value="">All locations</option>${locs.map(l=>`<option ${l===S.pickLoc?'selected':''}>${esc(l)}</option>`).join('')}</select>${all.some(i=>i.mo)?`<button class="chip ${S.pickMo?'on':''}" data-act="pickmo">Mobile Order only</button>`:''}</div>
   <p class="note">${p.over?'Nothing fits inside what you have left for '+dlabel(S.date).toLowerCase()+'. These are the lightest options.':'Ranked by protein per calorie among dishes that fit your remaining calories, fat and carbs.'} Only full dishes you can order, typical station builds and your saved meals are shown. Add-ons, sauces, sides and coffee drinks are left out.</p>
-  ${p.list.length?`<div class="card">${p.list.map((x,i)=>itemRow(x.it,`<span class="rank">${i+1}</span>`).replace('<div class="macros">',`<div class="why">${esc(x.why)}</div><div class="macros">`)).join('')}</div>`:'<div class="empty"><b>No dishes at this location</b></div>'}`;
+  ${p.list.length?`<div class="card">${p.list.map((x,i)=>itemRow(x.it,`<span class="rank">${i+1}</span>`).replace('<div class="macros">',`<div class="why">${esc(x.why)}</div><div class="macros">`)).join('')}</div>`:`<div class="empty"><b>No ${S.pickMeal?S.pickMeal+' ':''}dishes here</b>Try another meal or location.</div>`}`;
 }
 function mealTot(m,k){return m.items.reduce((s,i)=>s+padded(i,k,i.q),0)}
 function vMeals(){
@@ -479,7 +506,7 @@ function render(){
   const bar=(S.view==='menu'&&S.loc)?'':`${S.view==='goals'?'<a class="backlink" href="#today">‹ Today</a>':''}<div class="titlebar"><h1 class="ltitle">${esc(title)}</h1>${S.view==='today'?'<a class="gear" href="#goals" aria-label="Daily limits and settings"><svg viewBox="0 0 24 24"><path d="M4 7h9M18 7h2M4 17h3M12 17h8"/><circle cx="15.5" cy="7" r="2.5"/><circle cx="9.5" cy="17" r="2.5"/></svg></a>':''}${dated?`<div class="datenav"><button data-act="day" data-d="-1" aria-label="Previous day">‹</button><b>${S.view==='today'?esc(dparse(S.date).toLocaleDateString(undefined,{month:'short',day:'numeric'})):esc(dlabel(S.date))}</b><button data-act="day" data-d="1" aria-label="Next day" ${S.date===dkey(new Date())?'disabled style="opacity:.3"':''}>›</button></div>`:''}</div>`;
   $('#main').innerHTML=`<div class="wrap">${bar}${VIEWS[S.view]()}</div>`;
 }
-function route(){closeSheet();const h=location.hash.slice(1);if(h==='menu'&&S.view!=='menu'){S.loc='';S.q=''}if(h==='calendar'&&S.view!=='calendar'){S.calSel=S.date;S.calMonth=null}S.view=VIEWS[h]?h:'today';S.shown=40;render();$('#main').scrollTop=0}
+function route(){closeSheet();const h=location.hash.slice(1);if(h==='menu'&&S.view!=='menu'){S.loc='';S.q=''}if(h==='calendar'&&S.view!=='calendar'){S.calSel=S.date;S.calMonth=null}if(h==='picks'&&S.view!=='picks'&&S.pickMeal===undefined)S.pickMeal=S.date===dkey(new Date())?mealNow():'';S.view=VIEWS[h]?h:'today';S.shown=40;render();$('#main').scrollTop=0}
 
 /* ---------- sheets ---------- */
 function openSheet(html){$('#panel').innerHTML=html;$('#sheet').classList.add('open')}
@@ -536,6 +563,7 @@ document.addEventListener('click',async ev=>{
   else if(a==='import'){const t=$('#bk');try{const n=importData(t.value.trim());t.value='';$('#bkmsg').textContent='Restored. '+n+' day'+(n===1?'':'s')+' of log added.';toast('Backup restored')}catch(e){$('#bkmsg').textContent=e.message.startsWith('That')?e.message:'That text could not be read as a backup. Copy it again and paste the whole thing.'}}
   else if(a==='water'){(S.water[S.date] ||= []).push(+el.dataset.oz);saveLog();render()}
   else if(a==='waterundo'){(S.water[S.date]||[]).pop();saveLog();render()}
+  else if(a==='pickmeal'){S.pickMeal=el.dataset.m;render()}
   else if(a==='pickmo'){S.pickMo=!S.pickMo;render()}
   else if(a==='more'){S.shown+=40;render()}
   else if(a==='custom')customSheet();
